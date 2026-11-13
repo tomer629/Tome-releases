@@ -11,13 +11,13 @@ Download **Tome.zip** [Here](../../releases/latest).
 ### Windows (Chrome or Edge)
 
 Instructions for normal people:
-  1.Extract Tome.zip
-  2.Put the extracted folder wherever you want. Tome will run out of this folder. Copy the file path for later.
-  3.Open chrome and type: chrome://extensions/
-  4.Make sure Developer mode is on. Usually a toggle in the top right corner, or somewhere on the left sidebar, depending on your version. If you can't find it, google it.
-  5.Click 'Load Unpacked' towards the top of the screen.
-  6.Paste in your file path and hit enter or navigate to the Tome folder, click into it, you should see 3 folders: css, icons, and js.
-  7.Click select folder and it should add Tome to your list of extensions. Now when you click new tab it will open Tome.
+  1. Extract Tome.zip
+  2. Put the extracted folder wherever you want. Tome will run out of this folder. Copy the file path for later.
+  3. Open chrome and type: chrome://extensions/
+  4. Make sure Developer mode is on. Usually a toggle in the top right corner, or somewhere on the left sidebar, depending on your version. If you can't find it, google it.
+  5. Click 'Load Unpacked' towards the top of the screen.
+  6. Paste in your file path and hit enter or navigate to the Tome folder, click into it, you should see 3 folders: css, icons, and js.
+  7. Click select folder and it should add Tome to your list of extensions. Now when you click new tab it will open Tome.
 
 
 Instructions if you've never used a computer before in your life:
