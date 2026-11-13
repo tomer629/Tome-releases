@@ -29,6 +29,7 @@ Instructions if you've never used a computer before in your life:
   6. Go to **Documents**, click the **Tome** folder once, then click **Select Folder**.
   7. Open a new tab (Ctrl+T). Tome appears, and its Help opens in a second tab. If the browser asks whether to keep the new tab page change, keep it.
 
+
 ### Mac (Chrome)
 
   1. In Finder, double-click **Tome.zip**. Drag the new **Tome** folder into **Documents**.
