@@ -1,0 +1,724 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script type="application/json" id="tome-addon">
+{
+  "id": "grant-time",
+  "name": "Grant Time",
+  "version": "2.0",
+  "api": 1,
+  "description": "Track time spent on each grant.",
+  "icon": "\u003csvg viewBox=\"0 0 48 48\">\u003ccircle cx=\"24\" cy=\"25\" r=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/>\u003cpath d=\"M24 15v10l7 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cpath d=\"M19 5h10\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\"/>\u003c/svg>",
+  "legacyKey": "pb-grants"
+}
+</script>
+<meta charset="utf-8">
+<title>Grant Time</title>
+<style>
+/* Colors come from Tome's theme variables. */
+body.gt-page { overflow: hidden; }
+.gt { height: 100%; display: flex; gap: 14px; }
+.gt svg { width: 16px; height: 16px; }
+
+/* ---------- grant list ---------- */
+.gt-side { flex: none; width: calc(210px * var(--t)); display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.gt-side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gt-side-head h1 { font-size: calc(19px * var(--t)); }
+.gt-add { border: 1px dashed var(--line); border-radius: 6px; background: none; color: var(--accent); padding: calc(4px * var(--b)) calc(10px * var(--b)); font-size: calc(13.5px * var(--t)); }
+.gt-add:hover { border-color: var(--accent); background: var(--accent-soft); }
+.gt-add-form input, .gt-rename { width: 100%; border: 1px solid var(--accent); border-radius: 6px; padding: 6px 9px; background: var(--card); color: var(--fg); font: inherit; font-size: calc(14px * var(--t)); }
+.gt-add-form input:focus, .gt-rename:focus { outline: none; }
+.gt-grants { list-style: none; margin: 0; padding: 2px; display: flex; flex-direction: column; gap: 5px; overflow-y: auto; min-height: 0; }
+.gt-grant { display: flex; align-items: center; gap: 8px; padding: calc(7px * var(--b)) 10px; border: 1px solid var(--line); border-left: 5px solid var(--c); border-radius: 7px; background: var(--card); cursor: grab; user-select: none; touch-action: none; font-size: calc(14px * var(--t)); }
+.gt-grant:hover { border-color: var(--c); }
+.gt-grant span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gt-grant.dragging { opacity: .45; }
+.gt-grant.is-archived { cursor: default; opacity: .75; }
+.gt-grants .gt-drop-line { height: 3px; border-radius: 2px; background: var(--accent); flex: none; }
+.gt-hint { margin: 2px 2px; color: var(--muted); font-size: calc(13px * var(--t)); }
+.gt-archived { margin-top: auto; border-top: 1px solid var(--line); padding-top: 6px; }
+.gt-archived summary { cursor: pointer; color: var(--muted); font-size: calc(13px * var(--t)); padding: 2px; }
+.gt-archived summary:hover { color: var(--fg); }
+.gt-archived .gt-grants { margin-top: 6px; max-height: 30vh; }
+.gt-ghost { position: fixed; z-index: 30; pointer-events: none; padding: 5px 10px; border-radius: 7px; border-left: 5px solid var(--c); background: var(--card); box-shadow: 0 6px 18px rgb(0 0 0 / .25); font-size: calc(13.5px * var(--t)); white-space: nowrap; transform: translate(10px, 8px); }
+
+/* ---------- week ---------- */
+.gt-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.gt-bar { flex: none; display: flex; align-items: center; gap: 6px; }
+.gt-bar h2 { margin: 0 0 0 8px; font-size: calc(17px * var(--t)); font-weight: 600; }
+.gt-bar .quiet { padding: calc(6px * var(--b)) calc(12px * var(--b)); }
+.gt-week { flex: 1; min-height: 0; display: grid; grid-template-columns: calc(54px * var(--t)) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; background: var(--col); border-radius: 8px; padding: 6px 8px 8px 0; }
+.gt-heads, .gt-days, .gt-totals { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.gt-head { text-align: center; padding: 2px 0 6px; font-size: calc(13px * var(--t)); color: var(--muted); }
+.gt-head b { display: block; font-size: calc(17px * var(--t)); color: var(--fg); font-weight: 600; line-height: 1.2; }
+.gt-head.today b { color: var(--accent); }
+.gt-head.today { color: var(--accent); }
+
+.gt-hours { position: relative; }
+.gt-hour { position: absolute; right: 8px; transform: translateY(-50%); font-size: calc(11.5px * var(--t)); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.gt-hour:first-child { transform: none; }
+
+.gt-days { position: relative; min-height: 0; }
+.gt-day { position: relative; min-height: 0; border-radius: 6px; background-color: var(--card); border: 1px solid var(--line); overflow: hidden;
+  background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px calc(100% / var(--hours))),
+    repeating-linear-gradient(to bottom, color-mix(in srgb, var(--line) 45%, transparent) 0 1px, transparent 1px calc(100% / var(--hours) / 4)); }
+.gt-day.today { border-color: var(--accent); }
+.gt-day.over { box-shadow: inset 0 0 0 2px var(--accent); }
+
+.gt-edge { position: absolute; left: 0; right: 0; height: 9px; z-index: 3; cursor: ns-resize; touch-action: none; }
+.gt-edge.top { top: -10px; }
+.gt-edge.bottom { bottom: -10px; }
+.gt-edge::after { content: ""; position: absolute; left: 40%; right: 40%; top: 3px; height: 3px; border-radius: 2px; background: transparent; transition: background .15s; }
+.gt-edge:hover::after, .gt-edge.dragging::after { background: var(--accent); }
+
+.gt-block { position: absolute; left: 3px; right: 3px; z-index: 1; display: flex; flex-direction: column; gap: 0; overflow: hidden; padding: 1px 6px 1px 7px; border-radius: 5px; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 24%, var(--card)); color: var(--fg); font-size: calc(12px * var(--t)); line-height: 1.25; cursor: grab; user-select: none; touch-action: none; box-shadow: 0 1px 2px rgb(0 0 0 / .12); }
+.gt-block b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.gt-block .gt-time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gt-block .gt-bnote { flex: 1 1 auto; min-height: 0; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; font-style: italic; }
+.gt-block.short .gt-bnote { flex: 1 1 0; min-width: 0; white-space: nowrap; text-overflow: ellipsis; }
+.gt-block.short { flex-direction: row; align-items: center; gap: 6px; }
+.gt-block.selected { box-shadow: inset 0 0 0 2px var(--accent); z-index: 2; }
+.gt-block.moving { opacity: .5; }
+.gt-block.preview { pointer-events: none; opacity: .85; border-style: dashed; z-index: 2; }
+.gt-block.preview.bad { --c: var(--late); opacity: .6; }
+.gt-handle { position: absolute; left: 0; right: 0; height: 6px; cursor: ns-resize; z-index: 2; }
+.gt-handle.top { top: 0; }
+.gt-handle.bottom { bottom: 0; }
+
+.gt-totals { padding-top: 10px; }
+.gt-total { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gt-tline { display: flex; align-items: center; gap: 5px; font-size: calc(12px * var(--t)); min-width: 0; }
+.gt-tline i { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+.gt-tline span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.gt-tline b { flex: none; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.gt-tip { position: fixed; z-index: 40; pointer-events: none; transform: translate(14px, -50%); padding: 3px 8px; border-radius: 6px; background: var(--fg); color: var(--bg); font-size: calc(12.5px * var(--t)); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; box-shadow: 0 4px 12px rgb(0 0 0 / .25); }
+.gt-tip.bad { background: var(--late); color: #fff; }
+.gt-block.is-editing { visibility: hidden; }
+.gt-noteedit { position: absolute; left: 3px; right: 3px; z-index: 6; display: flex; border-radius: 5px; border-left: 4px solid var(--c); background: color-mix(in srgb, var(--c) 24%, var(--card)); box-shadow: inset 0 0 0 2px var(--accent); overflow: hidden; }
+.gt-noteedit textarea { flex: 1; min-height: 0; width: 100%; height: 100%; resize: none; border: 0; padding: 2px 6px 2px 5px; background: transparent; color: var(--fg); font: inherit; font-size: calc(12px * var(--t)); line-height: 1.25; font-style: italic; }
+.gt-noteedit textarea:focus { outline: none; }
+</style>
+</head>
+<body class="gt-page">
+<div class="gt">
+  <aside class="gt-side" aria-label="Grants">
+    <div class="gt-side-head">
+      <h1>Grants</h1>
+      <button id="gt-add" class="gt-add" type="button" title="Add a grant">+ Grant</button>
+    </div>
+    <form id="gt-add-form" class="gt-add-form" hidden>
+      <input id="gt-add-name" maxlength="40" autocomplete="off" placeholder="Grant name" aria-label="New grant name">
+    </form>
+    <ul id="gt-grants" class="gt-grants"></ul>
+    <p id="gt-empty" class="gt-hint" hidden>Add your grants with + Grant, then drag one onto the week.</p>
+    <details id="gt-archived" class="gt-archived" hidden>
+      <summary></summary>
+      <ul class="gt-grants"></ul>
+    </details>
+  </aside>
+
+  <main class="gt-main">
+    <header class="gt-bar">
+      <button id="gt-prev" class="icon-btn" type="button" title="Previous week" aria-label="Previous week"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></button>
+      <button id="gt-next" class="icon-btn" type="button" title="Next week" aria-label="Next week"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button>
+      <button id="gt-today" class="quiet" type="button">This week</button>
+      <h2 id="gt-range"></h2>
+    </header>
+    <div id="gt-week" class="gt-week">
+      <div class="gt-corner"></div>
+      <div id="gt-heads" class="gt-heads"></div>
+      <div id="gt-hours" class="gt-hours"></div>
+      <div id="gt-days" class="gt-days">
+        <div class="gt-edge top" id="gt-edge-top" title="Drag to show earlier hours. Double-click to reset."></div>
+        <div class="gt-edge bottom" id="gt-edge-bottom" title="Drag to show later hours. Double-click to reset."></div>
+      </div>
+      <div class="gt-corner"></div>
+      <div id="gt-totals" class="gt-totals"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* Grant Time: grants on the left, drag one onto the week to log time. Data (tome.data) shape:
+     { savedAt, grants: [{ id, name, color, archived }], blocks: [{ id, grantId, date: "YYYY-MM-DD", start, end, note }],
+       ranges: { "<week's Sunday>": { start, end } } }
+   start / end are minutes after midnight, in 15-minute steps. Blocks never overlap. The week shows 7 AM to 5 PM
+   unless its edge was dragged (that week only) or it has blocks outside that. */
+const showMenu = (x, y, items) => tome.menu(x, y, items);
+const closeMenu = () => tome.closeMenu();
+const STEP = 15, DEF = { start: 7 * 60, end: 17 * 60 }, NEW_LEN = 60;
+// No pink (she doesn't like it).
+const COLORS = [
+  ["Blue", "#3b82f6"], ["Green", "#16a34a"], ["Orange", "#f97316"], ["Purple", "#8b5cf6"], ["Teal", "#0d9488"],
+  ["Red", "#dc2626"], ["Gold", "#ca8a04"], ["Indigo", "#4f46e5"], ["Brown", "#92400e"], ["Slate", "#64748b"], ["Lime", "#65a30d"],
+];
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+const parse = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parse(s); d.setDate(d.getDate() + n); return ymd(d); };
+const sundayOf = d => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - x.getDay()); return ymd(x); };
+const snap = m => Math.round(m / STEP) * STEP;
+const dur = m => { const h = Math.floor(m / 60), r = m % 60; return h && r ? h + "h " + r + "m" : h ? h + "h" : r + "m"; };
+const clock = m => { const h = Math.floor(m / 60) % 24, r = m % 60; const ap = h < 12 ? "AM" : "PM"; const hh = h % 12 || 12; return hh + (r ? ":" + pad(r) : "") + " " + ap; };
+const clockShort = m => { const h = Math.floor(m / 60) % 24, r = m % 60; return (h % 12 || 12) + (r ? ":" + pad(r) : ""); };
+
+let data = { savedAt: 0, grants: [], blocks: [], ranges: {} };
+let week = sundayOf(new Date());
+let selected = null;
+
+/* ---------- saving ---------- */
+function clean(d) {
+  const o = d && typeof d === "object" ? d : {};
+  return {
+    savedAt: Number(o.savedAt) || 0,
+    grants: Array.isArray(o.grants) ? o.grants.filter(g => g && g.id && typeof g.name === "string") : [],
+    blocks: Array.isArray(o.blocks) ? o.blocks.filter(b => b && b.id && b.grantId && /^\d{4}-\d\d-\d\d$/.test(b.date) && b.end > b.start) : [],
+    ranges: o.ranges && typeof o.ranges === "object" ? o.ranges : {},
+  };
+}
+function save() {
+  data.savedAt = Date.now();
+  tome.data.set(data).catch(e => console.warn(e));
+}
+function load() { data = clean(tome.data.get()); }
+// Open in another tab too: show what was saved there.
+tome.data.onChange(v => { data = clean(v); render(); });
+
+/* ---------- helpers ---------- */
+const grant = id => data.grants.find(g => g.id === id);
+const colorOf = id => (grant(id) || {}).color || "#64748b";
+const active = () => data.grants.filter(g => !g.archived);
+const days = () => Array.from({ length: 7 }, (_, i) => addDays(week, i));
+const onDay = date => data.blocks.filter(b => b.date === date).sort((a, b) => a.start - b.start);
+const overlaps = (date, start, end, skip) => onDay(date).some(b => b.id !== skip && b.start < end && start < b.end);
+let live = null;   // while dragging past the grid's edge: hours added for now ({ start, end }), dropped on letting go
+function range() {
+  const set = data.ranges[week] || DEF;
+  let { start, end } = set;
+  if (live) { start = Math.min(start, live.start); end = Math.max(end, live.end); }
+  days().forEach(d => onDay(d).forEach(b => {
+    start = Math.min(start, Math.floor(b.start / 60) * 60);
+    end = Math.max(end, Math.ceil(b.end / 60) * 60);
+  }));
+  return { start: Math.max(0, start), end: Math.min(1440, end) };
+}
+/* The free stretch of a day around a time (for fitting a new block between others). */
+function freeAround(date, at, skip) {
+  let lo = 0, hi = 1440;
+  for (const b of onDay(date)) {
+    if (b.id === skip) continue;
+    if (b.start <= at && at < b.end) return null;
+    if (b.end <= at) lo = Math.max(lo, b.end);
+    if (b.start > at) hi = Math.min(hi, b.start);
+  }
+  return { lo, hi };
+}
+function toast(msg, undo) { tome.toast(msg, undo ? { undo } : undefined); }
+
+/* ---------- render ---------- */
+function render() {
+  renderGrants();
+  renderWeek();
+}
+
+function grantItem(g) {
+  const li = el("li", "gt-grant" + (g.archived ? " is-archived" : ""));
+  li.dataset.id = g.id;
+  li.style.setProperty("--c", g.color);
+  li.append(el("span", null, g.name));
+  li.title = g.archived ? g.name + " (archived: right-click to bring it back)" : g.name + "\nDrag onto the week. Right-click for more.";
+  if (!g.archived) li.addEventListener("pointerdown", e => startGrantDrag(e, g, li));
+  li.addEventListener("contextmenu", e => { e.preventDefault(); showMenu(e.clientX, e.clientY, grantMenu(g)); });
+  return li;
+}
+function renderGrants() {
+  const list = $("gt-grants");
+  const act = active();
+  list.replaceChildren(...act.map(grantItem));
+  $("gt-empty").hidden = act.length > 0;
+  const arch = data.grants.filter(g => g.archived);
+  const box = $("gt-archived");
+  box.hidden = !arch.length;
+  box.querySelector("summary").textContent = "Archived (" + arch.length + ")";
+  box.querySelector("ul").replaceChildren(...arch.map(grantItem));
+}
+
+let geo = null;   // the drawn week's range, for pointer math
+function renderWeek() {
+  const ds = days(), today = ymd(new Date());
+  const r = range();
+  const hours = (r.end - r.start) / 60;
+  geo = r;
+  const a = parse(ds[0]), z = parse(ds[6]);
+  const mon = d => d.toLocaleDateString(undefined, { month: "short" });
+  $("gt-range").textContent = mon(a) + " " + a.getDate() + (a.getFullYear() !== z.getFullYear() ? ", " + a.getFullYear() : "") + " - " +
+    (a.getMonth() === z.getMonth() ? "" : mon(z) + " ") + z.getDate() + ", " + z.getFullYear();
+  $("gt-today").disabled = week === sundayOf(new Date());
+
+  $("gt-heads").replaceChildren(...ds.map(d => {
+    const h = el("div", "gt-head" + (d === today ? " today" : ""));
+    const dt = parse(d);
+    h.append(document.createTextNode(dt.toLocaleDateString(undefined, { weekday: "short" })), el("b", null, String(dt.getDate())));
+    return h;
+  }));
+
+  const hourBox = $("gt-hours");
+  hourBox.replaceChildren();
+  for (let m = r.start; m < r.end; m += 60) {
+    const lab = el("div", "gt-hour", clock(m));
+    lab.style.top = ((m - r.start) / (r.end - r.start) * 100) + "%";
+    hourBox.append(lab);
+  }
+
+  const box = $("gt-days");
+  box.querySelectorAll(".gt-day").forEach(n => n.remove());
+  ds.forEach(d => {
+    const col = el("div", "gt-day" + (d === today ? " today" : ""));
+    col.dataset.date = d;
+    col.style.setProperty("--hours", hours);
+    onDay(d).forEach(b => col.append(blockEl(b, r)));
+    col.addEventListener("pointerdown", e => { if (e.target === col) { selected = null; markSelected(); } });
+    box.append(col);
+  });
+
+  $("gt-totals").replaceChildren(...ds.map(d => {
+    const t = el("div", "gt-total");
+    const sum = new Map();
+    onDay(d).forEach(b => sum.set(b.grantId, (sum.get(b.grantId) || 0) + b.end - b.start));
+    data.grants.filter(g => sum.has(g.id)).forEach(g => {
+      const line = el("div", "gt-tline");
+      line.style.setProperty("--c", g.color);
+      line.title = g.name + ": " + dur(sum.get(g.id));
+      line.append(el("i"), el("span", null, g.name), el("b", null, dur(sum.get(g.id))));
+      t.append(line);
+    });
+    return t;
+  }));
+}
+
+function place(n, start, end, r) {
+  const len = r.end - r.start;
+  n.style.top = ((start - r.start) / len * 100) + "%";
+  n.style.height = ((end - start) / len * 100) + "%";
+}
+function blockEl(b, r) {
+  const g = grant(b.grantId) || { name: "Grant", color: "#64748b" };
+  const n = el("div", "gt-block" + (b.end - b.start <= 30 ? " short" : "") + (selected === b.id ? " selected" : ""));
+  n.dataset.id = b.id;
+  n.style.setProperty("--c", g.color);
+  place(n, b.start, b.end, r);
+  n.append(el("b", null, g.name), el("span", "gt-time", clockShort(b.start) + "-" + clockShort(b.end) + " · " + dur(b.end - b.start)));
+  if (b.note) n.append(el("span", "gt-bnote", b.note));
+  n.title = g.name + "\n" + clock(b.start) + " - " + clock(b.end) + " (" + dur(b.end - b.start) + ")" + (b.note ? "\n" + b.note : "") +
+    "\nDrag to move, drag an edge to resize. Double-click for a note.";
+  const top = el("div", "gt-handle top"), bot = el("div", "gt-handle bottom");
+  top.addEventListener("pointerdown", e => startResize(e, b, "start"));
+  bot.addEventListener("pointerdown", e => startResize(e, b, "end"));
+  n.append(top, bot);
+  n.addEventListener("pointerdown", e => { if (!e.target.classList.contains("gt-handle")) startMove(e, b, n); });
+  n.addEventListener("dblclick", () => editNote(b));
+  n.addEventListener("contextmenu", e => { e.preventDefault(); selected = b.id; markSelected(); showMenu(e.clientX, e.clientY, blockMenu(b)); });
+  return n;
+}
+function markSelected() {
+  document.querySelectorAll(".gt-block").forEach(n => n.classList.toggle("selected", n.dataset.id === selected));
+}
+
+/* ---------- pointer math ---------- */
+function dayAt(x, y) {
+  const n = document.elementFromPoint(x, y);
+  return n && n.closest ? n.closest(".gt-day") : null;
+}
+function minutesAt(col, y) {
+  const rc = col.getBoundingClientRect();
+  return geo.start + (y - rc.top) / rc.height * (geo.end - geo.start);
+}
+function minutesPerPx() {
+  const col = document.querySelector(".gt-day");
+  return col ? (geo.end - geo.start) / col.getBoundingClientRect().height : 1;
+}
+/* While a drag or resize reaches past the top or bottom of the grid, add hours (whole hours) so the block stays in view. */
+let lastGrow = 0;
+function growTo(start, end) {
+  // One hour at a time, at most every 300 ms, so holding the pointer above the grid doesn't race to midnight.
+  const s = Math.max(0, geo.start - 60, Math.floor(start / 60) * 60), e = Math.min(1440, geo.end + 60, Math.ceil(end / 60) * 60);
+  if (s >= geo.start && e <= geo.end) return false;
+  if (Date.now() - lastGrow < 300) return false;
+  lastGrow = Date.now();
+  live = { start: Math.min(s, live ? live.start : 1440), end: Math.max(e, live ? live.end : 0) };
+  renderWeek();
+  return true;
+}
+/* The day column under a pointer by its x position only (works above or below the grid too). */
+function dayAtX(x) {
+  return [...document.querySelectorAll(".gt-day")].find(c => { const r = c.getBoundingClientRect(); return x >= r.left - 2 && x <= r.right + 2; }) || null;
+}
+/* A small label beside the pointer with the time while dragging. */
+let tip = null;
+function showTip(x, y, start, end, bad) {
+  if (!tip) { tip = el("div", "gt-tip"); document.body.append(tip); }
+  tip.classList.toggle("bad", !!bad);
+  tip.textContent = bad ? "Taken: " + clock(start) + " - " + clock(end) : clock(start) + " - " + clock(end) + " · " + dur(end - start);
+  tip.style.left = x + "px";
+  tip.style.top = y + "px";
+}
+function hideTip() { if (tip) { tip.remove(); tip = null; } }
+let preview = null;
+function showPreview(col, start, end, color, ok) {
+  if (!preview) preview = el("div", "gt-block preview");
+  preview.classList.toggle("bad", !ok);
+  preview.style.setProperty("--c", color);
+  place(preview, start, end, geo);
+  preview.replaceChildren(el("span", "gt-time", clockShort(start) + "-" + clockShort(end) + " · " + dur(end - start)));
+  if (preview.parentNode !== col) col.append(preview);
+}
+function hidePreview() { if (preview) preview.remove(); }
+/* Where a new block would go when a grant is dropped at y in a day: 1 hour centered on the pointer, squeezed into the
+   free space if a neighbor is in the way (at least 15 minutes), or null. */
+function newSpot(col, y) {
+  const date = col.dataset.date;
+  const at = Math.max(0, Math.min(1440 - STEP, Math.floor(minutesAt(col, y) / STEP) * STEP));
+  const free = freeAround(date, at);
+  if (!free) return null;
+  let start = Math.max(free.lo, Math.min(snap(minutesAt(col, y) - NEW_LEN / 2), free.hi - NEW_LEN));
+  start = Math.max(free.lo, start);
+  const end = Math.min(free.hi, start + NEW_LEN);
+  return end - start >= STEP ? { date, start, end } : null;
+}
+
+/* ---------- drag a grant: onto the week makes a block, within the list reorders ---------- */
+let ghost = null;
+function startGrantDrag(e, g, li) {
+  if (e.button !== 0) return;
+  const x0 = e.clientX, y0 = e.clientY;
+  let on = false, spot = null, dropBefore = undefined;
+  const list = $("gt-grants");
+  const line = el("li", "gt-drop-line");
+  const move = ev => {
+    if (!on) {
+      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
+      on = true;
+      li.classList.add("dragging");
+      ghost = el("div", "gt-ghost", g.name);
+      ghost.style.setProperty("--c", g.color);
+      document.body.append(ghost);
+      closeMenu();
+    }
+    ghost.style.left = ev.clientX + "px";
+    ghost.style.top = ev.clientY + "px";
+    document.querySelectorAll(".gt-day.over").forEach(n => n.classList.remove("over"));
+    line.remove();
+    spot = null; dropBefore = undefined;
+    const col = dayAt(ev.clientX, ev.clientY);
+    if (col) {
+      spot = newSpot(col, ev.clientY);
+      col.classList.add("over");
+      if (spot) { showPreview(col, spot.start, spot.end, g.color, true); showTip(ev.clientX, ev.clientY, spot.start, spot.end); }
+      else { const m = snap(minutesAt(col, ev.clientY)); showPreview(col, m, m + STEP, g.color, false); showTip(ev.clientX, ev.clientY, m, m + NEW_LEN, true); }
+      return;
+    }
+    hidePreview();
+    hideTip();
+    const lr = list.getBoundingClientRect();
+    if (ev.clientX >= lr.left && ev.clientX <= lr.right && ev.clientY >= lr.top - 20 && ev.clientY <= lr.bottom + 20) {
+      const items = [...list.querySelectorAll(".gt-grant")].filter(n => n !== li);
+      const next = items.find(n => { const r = n.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
+      dropBefore = next ? next.dataset.id : null;
+      list.insertBefore(line, next || null);
+    }
+  };
+  const up = () => {
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", up);
+    document.removeEventListener("pointercancel", up);
+    if (ghost) { ghost.remove(); ghost = null; }
+    line.remove();
+    hidePreview();
+    hideTip();
+    document.querySelectorAll(".gt-day.over").forEach(n => n.classList.remove("over"));
+    li.classList.remove("dragging");
+    if (!on) return;
+    if (spot) {
+      const b = { id: uid(), grantId: g.id, date: spot.date, start: spot.start, end: spot.end, note: "" };
+      data.blocks.push(b);
+      selected = b.id;
+      save(); render();
+    } else if (dropBefore !== undefined) {
+      const rest = data.grants.filter(x => x.id !== g.id);
+      const at = dropBefore ? rest.findIndex(x => x.id === dropBefore) : rest.length;
+      rest.splice(at < 0 ? rest.length : at, 0, g);
+      data.grants = rest;
+      save(); render();
+    }
+  };
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
+  document.addEventListener("pointercancel", up);
+}
+
+/* ---------- move a block (another time or day) ---------- */
+function startMove(e, b, node) {
+  let n = node;
+  if (e.button !== 0) return;
+  e.preventDefault();
+  selected = b.id; markSelected();
+  const x0 = e.clientX, y0 = e.clientY, len = b.end - b.start;
+  const grab = minutesAt(n.parentNode, y0) - b.start;
+  let on = false, spot = null;
+  const move = ev => {
+    if (!on) { if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return; on = true; n.classList.add("moving"); closeMenu(); }
+    let col = dayAtX(ev.clientX);
+    if (!col) { hidePreview(); hideTip(); spot = null; return; }
+    const want = () => Math.max(0, Math.min(1440 - len, snap(minutesAt(col, ev.clientY) - grab)));
+    let start = want();
+    if ((start < geo.start || start + len > geo.end) && growTo(start, start + len)) {
+      col = document.querySelector('.gt-day[data-date="' + col.dataset.date + '"]');
+      n = document.querySelector('.gt-block[data-id="' + b.id + '"]') || n;
+      n.classList.add("moving");
+      start = want();
+    }
+    start = Math.max(geo.start, Math.min(geo.end - len, start));
+    const ok = !overlaps(col.dataset.date, start, start + len, b.id);
+    spot = ok ? { date: col.dataset.date, start } : null;
+    showPreview(col, start, start + len, colorOf(b.grantId), ok);
+    showTip(ev.clientX, ev.clientY, start, start + len, !ok);
+  };
+  const up = () => {
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", up);
+    document.removeEventListener("pointercancel", up);
+    hidePreview();
+    hideTip();
+    n.classList.remove("moving");
+    const grew = !!live;
+    live = null;
+    if (!on) return;
+    if (spot) { b.date = spot.date; b.start = spot.start; b.end = spot.start + len; save(); render(); }
+    else { toast("That time is already taken."); if (grew) renderWeek(); }
+  };
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
+  document.addEventListener("pointercancel", up);
+}
+
+/* ---------- resize a block by an edge, 15 minutes at a time ---------- */
+function startResize(e, b, side) {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+  selected = b.id; markSelected();
+  let col = e.target.closest(".gt-day");
+  const others = onDay(b.date).filter(x => x.id !== b.id);
+  const lo = Math.max(0, ...others.filter(x => x.end <= b.start).map(x => x.end));
+  const hi = Math.min(1440, ...others.filter(x => x.start >= b.end).map(x => x.start));
+  let n = e.target.closest(".gt-block");
+  const was = { start: b.start, end: b.end };
+  const move = ev => {
+    let m = snap(minutesAt(col, ev.clientY));
+    // Past the grid's edge: add an hour (growTo redraws, so find the column and block again); the block itself never
+    // runs past what's shown, so its time stays readable.
+    if ((m < geo.start || m > geo.end) && growTo(side === "start" ? m : b.start, side === "end" ? m : b.end)) {
+      col = document.querySelector('.gt-day[data-date="' + b.date + '"]');
+      n = col.querySelector('.gt-block[data-id="' + b.id + '"]');
+      m = snap(minutesAt(col, ev.clientY));
+    }
+    m = Math.max(geo.start, Math.min(geo.end, m));
+    if (side === "start") b.start = Math.max(lo, Math.min(b.end - STEP, m));
+    else b.end = Math.min(hi, Math.max(b.start + STEP, m));
+    showTip(ev.clientX, ev.clientY, b.start, b.end);
+    const g = grant(b.grantId) || { name: "" };
+    place(n, b.start, b.end, geo);
+    n.querySelector(".gt-time").textContent = clockShort(b.start) + "-" + clockShort(b.end) + " · " + dur(b.end - b.start);
+    n.classList.toggle("short", b.end - b.start <= 30);
+    n.title = g.name + "\n" + clock(b.start) + " - " + clock(b.end);
+  };
+  const up = () => {
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", up);
+    document.removeEventListener("pointercancel", up);
+    hideTip();
+    live = null;
+    if (b.start !== was.start || b.end !== was.end) save();
+    render();
+  };
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
+  document.addEventListener("pointercancel", up);
+}
+
+/* ---------- drag the grid's top or bottom edge: show earlier or later hours (this week only) ---------- */
+function edgeDrag(side) {
+  const h = $(side === "start" ? "gt-edge-top" : "gt-edge-bottom");
+  h.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const y0 = e.clientY, r0 = range(), mpp = minutesPerPx();
+    h.classList.add("dragging");
+    const move = ev => {
+      const hoursMoved = Math.round((ev.clientY - y0) * mpp / 60);
+      const set = { ...(data.ranges[week] || DEF) };
+      if (side === "start") set.start = Math.max(0, Math.min(r0.end - 60, r0.start + hoursMoved * 60));
+      else set.end = Math.min(1440, Math.max(r0.start + 60, r0.end + hoursMoved * 60));
+      const cur = data.ranges[week] || DEF;
+      if (set.start === cur.start && set.end === cur.end) return;
+      data.ranges[week] = set;
+      renderWeek();
+    };
+    const up = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      h.classList.remove("dragging");
+      const set = data.ranges[week];
+      if (set && set.start === DEF.start && set.end === DEF.end) delete data.ranges[week];
+      save();
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  });
+  h.addEventListener("dblclick", () => { delete data.ranges[week]; save(); renderWeek(); });
+}
+
+/* ---------- menus ---------- */
+function grantMenu(g) {
+  const used = data.blocks.some(b => b.grantId === g.id);
+  return [
+    { label: "Rename", action: () => renameGrant(g) },
+    { label: "Color", items: COLORS.map(([name, c]) => ({ label: name, swatch: c, checked: g.color === c, toggle: () => { g.color = c; save(); render(); closeMenu(); } })) },
+    g.archived
+      ? { label: "Bring back", action: () => { g.archived = false; save(); render(); } }
+      : { label: "Archive", action: () => { g.archived = true; save(); render(); toast(g.name + " archived. Its time stays on the weeks it was logged."); } },
+    !used && "-",
+    !used && { label: "Delete grant", danger: true, confirm: true, action: () => { data.grants = data.grants.filter(x => x.id !== g.id); save(); render(); } },
+  ].filter(Boolean);
+}
+function blockMenu(b) {
+  return [
+    { label: b.note ? "Edit note..." : "Add a note...", action: () => editNote(b) },
+    { label: "Change grant", items: active().map(g => ({ label: g.name, checked: g.id === b.grantId, toggle: () => { b.grantId = g.id; save(); render(); closeMenu(); } })) },
+    "-",
+    { label: "Delete", danger: true, action: () => deleteBlock(b) },
+  ];
+}
+function deleteBlock(b) {
+  data.blocks = data.blocks.filter(x => x.id !== b.id);
+  if (selected === b.id) selected = null;
+  save(); render();
+  toast("Time block deleted", () => {
+    if (overlaps(b.date, b.start, b.end)) { toast("Can't put it back: that time is taken now."); return; }
+    data.blocks.push(b); save(); render();
+  });
+}
+function renameGrant(g) {
+  const li = document.querySelector('.gt-grant[data-id="' + g.id + '"]');
+  if (!li) return;
+  const input = el("input", "gt-rename");
+  input.value = g.name;
+  input.maxLength = 40;
+  li.replaceChildren(input);
+  input.addEventListener("pointerdown", e => e.stopPropagation());
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = keep => {
+    if (done) return;
+    done = true;
+    const v = input.value.trim();
+    if (keep && v && v !== g.name) { g.name = v; save(); }
+    render();
+  };
+  input.addEventListener("keydown", e => { if (e.key === "Enter") finish(true); if (e.key === "Escape") finish(false); });
+  input.addEventListener("blur", () => finish(true));
+}
+
+/* ---------- note: edited right on the block ---------- */
+let editing = null;
+function editNote(b) {
+  if (editing) editing.finish(true);
+  const col = document.querySelector('.gt-day[data-date="' + b.date + '"]');
+  const n = col && col.querySelector('.gt-block[data-id="' + b.id + '"]');
+  if (!n) return;
+  const g = grant(b.grantId) || { name: "", color: "#64748b" };
+  const box = el("div", "gt-noteedit");
+  box.style.setProperty("--c", g.color);
+  // The box takes the block's exact place and size (Thomas, 2026-11-13: fill the block, never grow).
+  box.style.top = n.style.top;
+  box.style.height = n.style.height;
+  const ta = el("textarea");
+  ta.maxLength = 300;
+  ta.placeholder = "What did you work on?";
+  ta.value = b.note || "";
+  ta.setAttribute("aria-label", "Note for " + g.name);
+  box.append(ta);
+  box.addEventListener("pointerdown", e => e.stopPropagation());
+  box.addEventListener("contextmenu", e => e.stopPropagation());
+  n.classList.add("is-editing");
+  col.append(box);
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+  let done = false;
+  const finish = keep => {
+    if (done) return;
+    done = true;
+    editing = null;
+    if (keep) {
+      const v = ta.value.trim();
+      if (v !== (b.note || "")) { b.note = v; save(); }
+    }
+    render();
+  };
+  editing = { finish };
+  ta.addEventListener("keydown", e => {
+    e.stopPropagation();
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); finish(true); }
+    else if (e.key === "Escape") { e.preventDefault(); finish(false); }
+  });
+  ta.addEventListener("blur", () => finish(true));
+}
+
+/* ---------- adding grants ---------- */
+$("gt-add").addEventListener("click", () => {
+  $("gt-add-form").hidden = false;
+  $("gt-add-name").value = "";
+  $("gt-add-name").focus();
+});
+$("gt-add-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = $("gt-add-name").value.trim();
+  if (!name) { $("gt-add-form").hidden = true; return; }
+  if (data.grants.some(g => g.name.toLowerCase() === name.toLowerCase())) { toast("There's already a grant called " + name + "."); return; }
+  const usedColors = new Set(data.grants.filter(g => !g.archived).map(g => g.color));
+  const color = (COLORS.find(([, c]) => !usedColors.has(c)) || COLORS[data.grants.length % COLORS.length])[1];
+  data.grants.push({ id: uid(), name, color, archived: false });
+  $("gt-add-name").value = "";
+  save(); render();
+  $("gt-add-name").focus();
+});
+$("gt-add-name").addEventListener("keydown", e => { if (e.key === "Escape") $("gt-add-form").hidden = true; });
+$("gt-add-name").addEventListener("blur", () => { if (!$("gt-add-name").value.trim()) $("gt-add-form").hidden = true; });
+
+/* ---------- weeks and keys ---------- */
+$("gt-prev").addEventListener("click", () => { week = addDays(week, -7); selected = null; renderWeek(); });
+$("gt-next").addEventListener("click", () => { week = addDays(week, 7); selected = null; renderWeek(); });
+$("gt-today").addEventListener("click", () => { week = sundayOf(new Date()); selected = null; renderWeek(); });
+document.addEventListener("keydown", e => {
+  if (e.target.closest && e.target.closest("input, textarea, dialog[open]")) return;
+  if ((e.key === "Delete" || e.key === "Backspace") && selected) {
+    const b = data.blocks.find(x => x.id === selected);
+    if (b) { e.preventDefault(); deleteBlock(b); }
+  } else if (e.key === "Escape" && selected) { selected = null; markSelected(); }
+});
+// Tome's own right-click menu only where this page offers one; elsewhere the browser's.
+document.addEventListener("contextmenu", e => { if (!e.target.closest(".gt-grant, .gt-block")) closeMenu(); });
+window.addEventListener("resize", () => renderWeek());
+
+edgeDrag("start");
+edgeDrag("end");
+load();
+render();
+</script>
+</body>
+</html>

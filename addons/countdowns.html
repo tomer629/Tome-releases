@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script type="application/json" id="tome-addon">
+{
+  "id": "countdowns",
+  "name": "Countdowns",
+  "version": "1.0",
+  "api": 1,
+  "description": "Days left until the dates that matter.",
+  "icon": "<svg viewBox=\"0 0 48 48\"><rect x=\"7\" y=\"10\" width=\"34\" height=\"31\" rx=\"5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/><path d=\"M7 19h34M16 6v8M32 6v8\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M19 30l4 4 7-8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
+}
+</script>
+<meta charset="utf-8">
+<title>Countdowns</title>
+<style>
+body { overflow: hidden; display: flex; flex-direction: column; gap: 14px; }
+.cd-bar { flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cd-bar h1 { margin-right: auto; }
+.cd-add { display: flex; gap: 8px; align-items: center; }
+.cd-add input[type="text"] { width: calc(220px * var(--t)); }
+.cd-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 2px; }
+.cd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(210px * var(--t)), 1fr)); gap: 10px; }
+.cd { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 14px 16px 12px; border: 1px solid var(--line); border-top: 5px solid var(--c); border-radius: 10px; background: var(--card); cursor: default; }
+.cd:hover { border-color: var(--c); }
+.cd-num { font-size: calc(40px * var(--t)); font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; color: var(--c); }
+.cd-unit { color: var(--muted); font-size: calc(13px * var(--t)); }
+.cd-name { font-weight: 600; font-size: calc(15px * var(--t)); margin-top: 6px; overflow-wrap: anywhere; }
+.cd-date { color: var(--muted); font-size: calc(13px * var(--t)); }
+.cd.today .cd-num { font-size: calc(30px * var(--t)); }
+.cd.past { opacity: .6; }
+.cd-head { margin: 18px 2px 8px; font-size: calc(12px * var(--t)); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.cd-edit { width: 100%; font-weight: 600; }
+</style>
+</head>
+<body>
+<header class="cd-bar">
+  <h1>Countdowns</h1>
+  <form id="add" class="cd-add" autocomplete="off">
+    <input id="name" type="text" maxlength="60" placeholder="What's coming up?" aria-label="Name">
+    <input id="date" type="date" aria-label="Date">
+    <button class="primary" type="submit">Add</button>
+  </form>
+</header>
+<div class="cd-scroll">
+  <div id="up" class="cd-grid"></div>
+  <p id="empty" class="tome-empty" hidden>Add a date above: a trip, a birthday, a deadline. Right-click a countdown to change it.</p>
+  <div id="pastHead" class="cd-head" hidden>Past</div>
+  <div id="past" class="cd-grid"></div>
+</div>
+<script>
+const COLORS = [["Blue", "#3b82f6"], ["Green", "#16a34a"], ["Orange", "#f97316"], ["Purple", "#8b5cf6"], ["Teal", "#0d9488"], ["Red", "#dc2626"], ["Gold", "#ca8a04"], ["Slate", "#64748b"]];
+const $ = id => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+let state = clean(tome.data.get());
+function clean(v) {
+  const o = v && typeof v === "object" ? v : {};
+  return { version: 1, items: Array.isArray(o.items) ? o.items.filter(x => x && x.id && x.name && /^\d{4}-\d\d-\d\d$/.test(x.date)) : [] };
+}
+const save = () => tome.data.set(state);
+const dayNum = s => { const [y, m, d] = s.split("-").map(Number); return Math.round(Date.UTC(y, m - 1, d) / 864e5); };
+const todayNum = () => { const n = new Date(); return Math.round(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()) / 864e5); };
+const pretty = s => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" }); };
+
+function card(it) {
+  const diff = dayNum(it.date) - todayNum();
+  const c = el("div", "cd" + (diff === 0 ? " today" : diff < 0 ? " past" : ""));
+  c.style.setProperty("--c", it.color);
+  if (diff === 0) c.append(el("div", "cd-num", "Today"));
+  else {
+    const n = Math.abs(diff);
+    c.append(el("div", "cd-num", n.toLocaleString()), el("div", "cd-unit", (n === 1 ? "day" : "days") + (diff < 0 ? " ago" : " to go")));
+  }
+  c.append(el("div", "cd-name", it.name), el("div", "cd-date", pretty(it.date)));
+  c.title = "Right-click to change";
+  c.addEventListener("contextmenu", e => tome.menu(e, [
+    { label: "Rename", action: () => rename(it, c) },
+    { label: "Change date", action: () => redate(it, c) },
+    { label: "Color", items: COLORS.map(([n, hex]) => ({ label: n, swatch: hex, checked: it.color === hex, toggle: () => { it.color = hex; save(); render(); tome.closeMenu(); } })) },
+    "-",
+    { label: "Delete", danger: true, action: () => remove(it) },
+  ]));
+  return c;
+}
+function render() {
+  const t = todayNum();
+  const items = [...state.items].sort((a, b) => dayNum(a.date) - dayNum(b.date));
+  const up = items.filter(x => dayNum(x.date) >= t), past = items.filter(x => dayNum(x.date) < t).reverse();
+  $("up").replaceChildren(...up.map(card));
+  $("past").replaceChildren(...past.map(card));
+  $("pastHead").hidden = !past.length;
+  $("empty").hidden = items.length > 0;
+}
+function inlineEdit(c, input, done) {
+  const box = c.querySelector(".cd-name");
+  box.replaceChildren(input);
+  input.focus();
+  if (input.select) input.select();
+  let over = false;
+  const fin = keep => { if (over) return; over = true; if (keep) done(input.value); render(); };
+  input.addEventListener("keydown", e => { if (e.key === "Enter") fin(true); if (e.key === "Escape") fin(false); });
+  input.addEventListener("blur", () => fin(true));
+}
+function rename(it, c) {
+  const i = el("input", "cd-edit"); i.type = "text"; i.maxLength = 60; i.value = it.name;
+  inlineEdit(c, i, v => { v = v.trim(); if (v && v !== it.name) { it.name = v; save(); } });
+}
+function redate(it, c) {
+  const i = el("input", "cd-edit"); i.type = "date"; i.value = it.date;
+  inlineEdit(c, i, v => { if (/^\d{4}-\d\d-\d\d$/.test(v) && v !== it.date) { it.date = v; save(); } });
+}
+function remove(it) {
+  const at = state.items.indexOf(it);
+  state.items.splice(at, 1);
+  save(); render();
+  tome.toast(it.name + " deleted", { undo: () => { state.items.splice(at, 0, it); save(); render(); } });
+}
+$("add").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = $("name").value.trim(), date = $("date").value;
+  if (!name) { $("name").focus(); return; }
+  if (!date) { $("date").focus(); tome.toast("Pick a date"); return; }
+  const used = new Set(state.items.map(x => x.color));
+  const color = (COLORS.find(([, h]) => !used.has(h)) || COLORS[state.items.length % COLORS.length])[1];
+  state.items.push({ id: uid(), name, date, color });
+  save(); render();
+  $("name").value = ""; $("date").value = ""; $("name").focus();
+});
+tome.data.onChange(v => { state = clean(v); render(); });
+render();
+// Roll over at midnight (only then, so an edit in progress is never redrawn away).
+let shownDay = new Date().toDateString();
+setInterval(() => { const d = new Date().toDateString(); if (d !== shownDay) { shownDay = d; render(); } }, 60 * 1000);
+</script>
+</body>
+</html>

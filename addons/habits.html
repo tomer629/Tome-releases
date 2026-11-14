@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script type="application/json" id="tome-addon">
+{
+  "id": "habits",
+  "name": "Habits",
+  "version": "1.0",
+  "api": 1,
+  "description": "Tick off daily habits and keep your streaks going.",
+  "icon": "<svg viewBox=\"0 0 48 48\"><rect x=\"6\" y=\"6\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"27\" y=\"6\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"6\" y=\"27\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"27\" y=\"27\" width=\"15\" height=\"15\" rx=\"4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/></svg>"
+}
+</script>
+<meta charset="utf-8">
+<title>Habits</title>
+<style>
+body { overflow: hidden; display: flex; flex-direction: column; gap: 14px; }
+.hb-bar { flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hb-bar h1 { margin-right: auto; }
+.hb-add { display: flex; gap: 8px; }
+.hb-add input { width: calc(220px * var(--t)); }
+.hb-scroll { flex: 1; min-height: 0; overflow: auto; }
+table { width: 100%; border-spacing: 0; }
+th { position: sticky; top: 0; background: var(--bg); z-index: 1; font-weight: 500; font-size: calc(12px * var(--t)); color: var(--muted); padding: 4px 2px 8px; text-align: center; white-space: nowrap; }
+th.today { color: var(--accent); font-weight: 700; }
+th.hb-name-h { text-align: left; }
+td { padding: 3px 2px; text-align: center; }
+td.hb-name { text-align: left; padding-right: 12px; min-width: calc(160px * var(--t)); }
+.hb-label { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.hb-label i { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.hb-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-cell { width: calc(30px * var(--b)); height: calc(30px * var(--b)); border: 1px solid var(--line); border-radius: 7px; background: var(--card); padding: 0; display: inline-grid; place-items: center; color: #fff; }
+.hb-cell:hover { border-color: var(--c); }
+.hb-cell.on { background: var(--c); border-color: var(--c); }
+.hb-cell.on::after { content: ""; width: 40%; height: 22%; border: solid currentColor; border-width: 0 0 3px 3px; transform: translateY(-15%) rotate(-45deg); }
+.hb-cell.today { box-shadow: 0 0 0 2px var(--accent-soft); }
+td.hb-streak { white-space: nowrap; padding-left: 12px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: calc(13px * var(--t)); }
+td.hb-streak b { color: var(--fg); font-size: calc(15px * var(--t)); }
+.hb-edit { width: 100%; font-weight: 600; }
+</style>
+</head>
+<body>
+<header class="hb-bar">
+  <h1>Habits</h1>
+  <form id="add" class="hb-add" autocomplete="off">
+    <input id="name" type="text" maxlength="40" placeholder="New habit, like Walk 20 minutes" aria-label="New habit">
+    <button class="primary" type="submit">Add</button>
+  </form>
+</header>
+<div class="hb-scroll">
+  <table>
+    <thead><tr id="head"></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <p id="empty" class="tome-empty" hidden>Add a habit above, then click a day to tick it off. Right-click a habit to rename, recolor or delete it.</p>
+</div>
+<script>
+const DAYS = 14;
+const COLORS = [["Green", "#16a34a"], ["Blue", "#3b82f6"], ["Orange", "#f97316"], ["Purple", "#8b5cf6"], ["Teal", "#0d9488"], ["Red", "#dc2626"], ["Gold", "#ca8a04"], ["Slate", "#64748b"]];
+const $ = id => document.getElementById(id);
+const el = (t, c, x) => { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const pad = n => String(n).padStart(2, "0");
+const ymd = d => d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+let state = clean(tome.data.get());
+function clean(v) {
+  const o = v && typeof v === "object" ? v : {};
+  return { version: 1, habits: Array.isArray(o.habits) ? o.habits.filter(h => h && h.id && h.name).map(h => ({ ...h, done: Array.isArray(h.done) ? h.done : [] })) : [] };
+}
+const save = () => tome.data.set(state);
+function days() {
+  const out = [], n = new Date();
+  for (let i = DAYS - 1; i >= 0; i--) out.push(ymd(new Date(n.getFullYear(), n.getMonth(), n.getDate() - i)));
+  return out;
+}
+/* Days in a row up to today (or up to yesterday while today isn't ticked yet). */
+function streak(h) {
+  const set = new Set(h.done), n = new Date();
+  let i = set.has(ymd(n)) ? 0 : 1, s = 0;
+  while (set.has(ymd(new Date(n.getFullYear(), n.getMonth(), n.getDate() - i)))) { s++; i++; }
+  return s;
+}
+function render() {
+  const ds = days(), today = ds[ds.length - 1];
+  const head = $("head");
+  head.replaceChildren(el("th", "hb-name-h", "Habit"));
+  ds.forEach(d => {
+    const [y, m, dd] = d.split("-").map(Number);
+    const dt = new Date(y, m - 1, dd);
+    const th = el("th", d === today ? "today" : "");
+    th.append(el("div", null, dt.toLocaleDateString(undefined, { weekday: "narrow" })), el("div", null, String(dd)));
+    th.title = dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+    head.append(th);
+  });
+  head.append(el("th", null, "Streak"));
+  $("rows").replaceChildren(...state.habits.map(h => {
+    const tr = el("tr");
+    tr.style.setProperty("--c", h.color);
+    const name = el("td", "hb-name");
+    const lab = el("div", "hb-label");
+    lab.append(el("i"), el("span", null, h.name));
+    lab.title = h.name + "\nRight-click for more";
+    name.append(lab);
+    tr.append(name);
+    ds.forEach(d => {
+      const td = el("td");
+      const b = el("button", "hb-cell" + (h.done.includes(d) ? " on" : "") + (d === today ? " today" : ""));
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(h.done.includes(d)));
+      b.setAttribute("aria-label", h.name + ", " + d);
+      b.addEventListener("click", () => {
+        h.done = h.done.includes(d) ? h.done.filter(x => x !== d) : [...h.done, d].sort();
+        save(); render();
+      });
+      td.append(b);
+      tr.append(td);
+    });
+    const s = streak(h);
+    const st = el("td", "hb-streak");
+    st.append(el("b", null, String(s)), document.createTextNode(s === 1 ? " day" : " days"));
+    tr.append(st);
+    tr.addEventListener("contextmenu", e => tome.menu(e, [
+      { label: "Rename", action: () => rename(h, lab) },
+      { label: "Color", items: COLORS.map(([n, hex]) => ({ label: n, swatch: hex, checked: h.color === hex, toggle: () => { h.color = hex; save(); render(); tome.closeMenu(); } })) },
+      { label: "Move up", disabled: state.habits[0] === h, action: () => move(h, -1) },
+      { label: "Move down", disabled: state.habits[state.habits.length - 1] === h, action: () => move(h, 1) },
+      "-",
+      { label: "Delete", danger: true, action: () => remove(h) },
+    ]));
+    return tr;
+  }));
+  $("empty").hidden = state.habits.length > 0;
+}
+function move(h, dir) {
+  const i = state.habits.indexOf(h), j = i + dir;
+  [state.habits[i], state.habits[j]] = [state.habits[j], state.habits[i]];
+  save(); render();
+}
+function rename(h, lab) {
+  const i = el("input", "hb-edit"); i.type = "text"; i.maxLength = 40; i.value = h.name;
+  lab.replaceChildren(i); i.focus(); i.select();
+  let over = false;
+  const fin = keep => { if (over) return; over = true; const v = i.value.trim(); if (keep && v && v !== h.name) { h.name = v; save(); } render(); };
+  i.addEventListener("keydown", e => { if (e.key === "Enter") fin(true); if (e.key === "Escape") fin(false); });
+  i.addEventListener("blur", () => fin(true));
+}
+function remove(h) {
+  const at = state.habits.indexOf(h);
+  state.habits.splice(at, 1);
+  save(); render();
+  tome.toast(h.name + " deleted", { undo: () => { state.habits.splice(at, 0, h); save(); render(); } });
+}
+$("add").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = $("name").value.trim();
+  if (!name) return;
+  const used = new Set(state.habits.map(x => x.color));
+  const color = (COLORS.find(([, c]) => !used.has(c)) || COLORS[state.habits.length % COLORS.length])[1];
+  state.habits.push({ id: uid(), name, color, done: [] });
+  save(); render();
+  $("name").value = "";
+});
+tome.data.onChange(v => { state = clean(v); render(); });
+render();
+// Roll over at midnight (only then, so an edit in progress is never redrawn away).
+let shownDay = new Date().toDateString();
+setInterval(() => { const d = new Date().toDateString(); if (d !== shownDay) { shownDay = d; render(); } }, 60 * 1000);
+</script>
+</body>
+</html>
