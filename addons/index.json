@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-14T07:40:54.591Z",
+ "updatedAt": "2026-11-14T17:09:56.117Z",
  "items": [
   {
    "id": "countdowns",
@@ -10,20 +10,20 @@
    "file": "countdowns.html"
   },
   {
-   "id": "grant-time",
-   "name": "Grant Time",
-   "version": "2.0",
-   "description": "Track time spent on each grant.",
-   "icon": "<svg viewBox=\"0 0 48 48\"><circle cx=\"24\" cy=\"25\" r=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/><path d=\"M24 15v10l7 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M19 5h10\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\"/></svg>",
-   "file": "grant-time.html"
-  },
-  {
    "id": "habits",
    "name": "Habits",
    "version": "1.0",
    "description": "Tick off daily habits and keep your streaks going.",
    "icon": "<svg viewBox=\"0 0 48 48\"><rect x=\"6\" y=\"6\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"27\" y=\"6\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"6\" y=\"27\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"27\" y=\"27\" width=\"15\" height=\"15\" rx=\"4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/></svg>",
    "file": "habits.html"
+  },
+  {
+   "id": "time-blocks",
+   "name": "Time Blocks",
+   "version": "1.0",
+   "description": "Drag projects onto your week to log time in blocks.",
+   "icon": "<svg viewBox=\"0 0 48 48\"><circle cx=\"24\" cy=\"25\" r=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/><path d=\"M24 15v10l7 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M19 5h10\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\"/></svg>",
+   "file": "time-blocks.html"
   }
  ]
 }

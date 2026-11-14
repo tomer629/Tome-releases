@@ -3,17 +3,16 @@
 <head>
 <script type="application/json" id="tome-addon">
 {
-  "id": "grant-time",
-  "name": "Grant Time",
-  "version": "2.0",
+  "id": "time-blocks",
+  "name": "Time Blocks",
+  "version": "1.0",
   "api": 1,
-  "description": "Track time spent on each grant.",
-  "icon": "\u003csvg viewBox=\"0 0 48 48\">\u003ccircle cx=\"24\" cy=\"25\" r=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/>\u003cpath d=\"M24 15v10l7 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cpath d=\"M19 5h10\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\"/>\u003c/svg>",
-  "legacyKey": "pb-grants"
+  "description": "Drag projects onto your week to log time in blocks.",
+  "icon": "\u003csvg viewBox=\"0 0 48 48\">\u003ccircle cx=\"24\" cy=\"25\" r=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/>\u003cpath d=\"M24 15v10l7 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cpath d=\"M19 5h10\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\"/>\u003c/svg>"
 }
 </script>
 <meta charset="utf-8">
-<title>Grant Time</title>
+<title>Time Blocks</title>
 <style>
 /* Colors come from Tome's theme variables. */
 body.gt-page { overflow: hidden; }
@@ -102,16 +101,16 @@ body.gt-page { overflow: hidden; }
 </head>
 <body class="gt-page">
 <div class="gt">
-  <aside class="gt-side" aria-label="Grants">
+  <aside class="gt-side" aria-label="Projects">
     <div class="gt-side-head">
-      <h1>Grants</h1>
-      <button id="gt-add" class="gt-add" type="button" title="Add a grant">+ Grant</button>
+      <h1>Projects</h1>
+      <button id="gt-add" class="gt-add" type="button" title="Add a project">+ Project</button>
     </div>
     <form id="gt-add-form" class="gt-add-form" hidden>
-      <input id="gt-add-name" maxlength="40" autocomplete="off" placeholder="Grant name" aria-label="New grant name">
+      <input id="gt-add-name" maxlength="40" autocomplete="off" placeholder="Project name" aria-label="New project name">
     </form>
     <ul id="gt-grants" class="gt-grants"></ul>
-    <p id="gt-empty" class="gt-hint" hidden>Add your grants with + Grant, then drag one onto the week.</p>
+    <p id="gt-empty" class="gt-hint" hidden>Add your projects with + Project, then drag one onto the week.</p>
     <details id="gt-archived" class="gt-archived" hidden>
       <summary></summary>
       <ul class="gt-grants"></ul>
@@ -140,7 +139,7 @@ body.gt-page { overflow: hidden; }
 </div>
 
 <script>
-/* Grant Time: grants on the left, drag one onto the week to log time. Data (tome.data) shape:
+/* Time Blocks: projects on the left (called grants in the code), drag one onto the week to log time. Data (tome.data) shape:
      { savedAt, grants: [{ id, name, color, archived }], blocks: [{ id, grantId, date: "YYYY-MM-DD", start, end, note }],
        ranges: { "<week's Sunday>": { start, end } } }
    start / end are minutes after midnight, in 15-minute steps. Blocks never overlap. The week shows 7 AM to 5 PM
@@ -306,7 +305,7 @@ function place(n, start, end, r) {
   n.style.height = ((end - start) / len * 100) + "%";
 }
 function blockEl(b, r) {
-  const g = grant(b.grantId) || { name: "Grant", color: "#64748b" };
+  const g = grant(b.grantId) || { name: "Project", color: "#64748b" };
   const n = el("div", "gt-block" + (b.end - b.start <= 30 ? " short" : "") + (selected === b.id ? " selected" : ""));
   n.dataset.id = b.id;
   n.style.setProperty("--c", g.color);
@@ -592,13 +591,13 @@ function grantMenu(g) {
       ? { label: "Bring back", action: () => { g.archived = false; save(); render(); } }
       : { label: "Archive", action: () => { g.archived = true; save(); render(); toast(g.name + " archived. Its time stays on the weeks it was logged."); } },
     !used && "-",
-    !used && { label: "Delete grant", danger: true, confirm: true, action: () => { data.grants = data.grants.filter(x => x.id !== g.id); save(); render(); } },
+    !used && { label: "Delete project", danger: true, confirm: true, action: () => { data.grants = data.grants.filter(x => x.id !== g.id); save(); render(); } },
   ].filter(Boolean);
 }
 function blockMenu(b) {
   return [
     { label: b.note ? "Edit note..." : "Add a note...", action: () => editNote(b) },
-    { label: "Change grant", items: active().map(g => ({ label: g.name, checked: g.id === b.grantId, toggle: () => { b.grantId = g.id; save(); render(); closeMenu(); } })) },
+    { label: "Change project", items: active().map(g => ({ label: g.name, checked: g.id === b.grantId, toggle: () => { b.grantId = g.id; save(); render(); closeMenu(); } })) },
     "-",
     { label: "Delete", danger: true, action: () => deleteBlock(b) },
   ];
@@ -689,7 +688,7 @@ $("gt-add-form").addEventListener("submit", e => {
   e.preventDefault();
   const name = $("gt-add-name").value.trim();
   if (!name) { $("gt-add-form").hidden = true; return; }
-  if (data.grants.some(g => g.name.toLowerCase() === name.toLowerCase())) { toast("There's already a grant called " + name + "."); return; }
+  if (data.grants.some(g => g.name.toLowerCase() === name.toLowerCase())) { toast("There's already a project called " + name + "."); return; }
   const usedColors = new Set(data.grants.filter(g => !g.archived).map(g => g.color));
   const color = (COLORS.find(([, c]) => !usedColors.has(c)) || COLORS[data.grants.length % COLORS.length])[1];
   data.grants.push({ id: uid(), name, color, archived: false });
