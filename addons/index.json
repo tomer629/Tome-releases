@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-14T17:09:56.117Z",
+ "updatedAt": "2026-11-21T01:14:00.179Z",
  "items": [
   {
    "id": "countdowns",
@@ -16,6 +16,14 @@
    "description": "Tick off daily habits and keep your streaks going.",
    "icon": "<svg viewBox=\"0 0 48 48\"><rect x=\"6\" y=\"6\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"27\" y=\"6\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"6\" y=\"27\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"27\" y=\"27\" width=\"15\" height=\"15\" rx=\"4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/></svg>",
    "file": "habits.html"
+  },
+  {
+   "id": "recipes",
+   "name": "Recipes",
+   "version": "1.0",
+   "description": "Your recipe book: scale any recipe, cook step by step with timers, and build a grocery list.",
+   "icon": "<svg viewBox=\"0 0 48 48\"><path d=\"M10 7h24a4 4 0 0 1 4 4v30H14a4 4 0 0 1-4-4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linejoin=\"round\"/><path d=\"M10 37a4 4 0 0 1 4-4h24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/><path d=\"M19 13v8a3 3 0 0 0 6 0v-8M22 13v15M31 13c-2.5 1.5-3 5-3 8h3v7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
+   "file": "recipes.html"
   },
   {
    "id": "time-blocks",

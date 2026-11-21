@@ -1,0 +1,1723 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script type="application/json" id="tome-addon">
+{
+  "id": "recipes",
+  "name": "Recipes",
+  "version": "1.0",
+  "api": 1,
+  "description": "Your recipe book: scale any recipe, cook step by step with timers, and build a grocery list.",
+  "icon": "<svg viewBox=\"0 0 48 48\"><path d=\"M10 7h24a4 4 0 0 1 4 4v30H14a4 4 0 0 1-4-4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linejoin=\"round\"/><path d=\"M10 37a4 4 0 0 1 4-4h24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/><path d=\"M19 13v8a3 3 0 0 0 6 0v-8M22 13v15M31 13c-2.5 1.5-3 5-3 8h3v7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
+}
+</script>
+<meta charset="utf-8">
+<title>Recipes</title>
+<style>
+body { padding: 0; overflow: hidden; height: 100vh; }
+button { font: inherit; }
+.app { display: grid; grid-template-columns: calc(290px * var(--t)) minmax(0, 1fr); height: 100vh; }
+
+/* ---------- library ---------- */
+.rb-side { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+.rb-top { display: flex; gap: 6px; padding: 12px 10px 8px; }
+.rb-top input { flex: 1; min-width: 0; }
+.rb-top .primary { padding-left: 12px; padding-right: 12px; white-space: nowrap; }
+.filters { display: flex; gap: 5px; padding: 0 10px 8px; overflow-x: auto; scrollbar-width: none; align-items: center; }
+.filters::-webkit-scrollbar { display: none; }
+.chip { flex: none; border: 1px solid var(--line); background: none; border-radius: 999px; padding: 1px 10px; font-size: calc(12.5px * var(--t)); color: var(--muted); white-space: nowrap; }
+.chip:hover { border-color: var(--muted); }
+.chip.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.rb-list { flex: 1; min-height: 0; overflow: auto; padding: 0 6px 8px; display: flex; flex-direction: column; gap: 2px; }
+.rc { display: grid; grid-template-columns: calc(46px * var(--t)) minmax(0, 1fr) auto; gap: 10px; align-items: center; width: 100%; border: 0; background: none; text-align: left; padding: 6px; border-radius: 8px; color: var(--fg); }
+.rc:hover { background: var(--accent-soft); }
+.rc.rb-sel { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.thumb { width: calc(46px * var(--t)); height: calc(46px * var(--t)); border-radius: 7px; background: var(--col) center / cover no-repeat; display: grid; place-items: center; color: var(--muted); font-weight: 700; font-size: calc(18px * var(--t)); overflow: hidden; }
+.rc-tx { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.rc-tx b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-tx small { color: var(--muted); font-size: calc(12px * var(--t)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-tx small.match { color: var(--accent); }
+.rc-fav { color: var(--soon); font-size: calc(14px * var(--t)); }
+.rb-foot { border-top: 1px solid var(--line); padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 6px; }
+.rb-foot .row { display: flex; gap: 6px; }
+.gro-btn { flex: 1; display: flex; align-items: center; gap: 8px; text-align: left; }
+.gro-btn .n { margin-left: auto; background: var(--accent); color: var(--accent-fg); border-radius: 999px; padding: 0 7px; font-size: calc(12px * var(--t)); font-weight: 600; }
+.gro-btn.on { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.keys { color: var(--muted); font-size: calc(11.5px * var(--t)); line-height: 1.4; }
+.keys kbd { font: inherit; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; background: var(--card); }
+.rb-empty { color: var(--muted); padding: 16px 10px; font-size: calc(13.5px * var(--t)); text-align: center; }
+
+/* ---------- main ---------- */
+.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.pane { flex: 1; min-height: 0; overflow: auto; padding: 16px 22px 40px; }
+.welcome { margin: auto; max-width: 460px; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; padding: 40px 16px; }
+.welcome h1 { font-size: calc(24px * var(--t)); }
+.welcome p { color: var(--muted); margin: 0; line-height: 1.5; }
+.welcome .tome-row { justify-content: center; }
+
+/* recipe view */
+.rv-head { display: flex; gap: 16px; align-items: flex-start; }
+.rv-title { flex: 1; min-width: 0; }
+.rv-photo { flex: none; width: calc(150px * var(--t)); height: calc(110px * var(--t)); border-radius: 10px; background: var(--col) center / cover no-repeat; cursor: zoom-in; }
+.rv-photo.rb-none { display: none; }
+.rv-title h1 { font-size: calc(26px * var(--t)); line-height: 1.2; margin-bottom: 6px; overflow-wrap: anywhere; }
+.rb-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: calc(13.5px * var(--t)); align-items: center; }
+.rb-meta .stars { color: var(--soon); letter-spacing: 1px; }
+.rb-meta .tome-chip { cursor: pointer; }
+.rv-acts { display: flex; gap: 6px; align-items: center; }
+.rv-acts .icon-btn svg { width: 18px; height: 18px; }
+.icon-btn.fav-on { color: var(--soon); border-color: var(--soon); }
+.icon-btn.fav-on svg { fill: currentColor; }
+.rb-tools { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 16px 0 6px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.stepper { display: inline-flex; align-items: center; gap: 2px; }
+.stepper .lbl { color: var(--muted); font-size: calc(13px * var(--t)); margin-right: 6px; }
+.stepper button { width: calc(28px * var(--b)); height: calc(28px * var(--b)); border: 1px solid var(--line); background: none; border-radius: 6px; padding: 0; font-size: 16px; line-height: 1; color: var(--fg); }
+.stepper button:hover { border-color: var(--accent); color: var(--accent); }
+.stepper b { min-width: calc(54px * var(--t)); text-align: center; font-variant-numeric: tabular-nums; }
+.quick { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.quick button { border: 0; background: none; padding: 3px 10px; font-size: calc(13px * var(--t)); color: var(--muted); }
+.quick button + button { border-left: 1px solid var(--line); }
+.quick button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.from { font-size: calc(12.5px * var(--t)); color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 4px 1px 10px; display: inline-flex; align-items: center; gap: 4px; }
+.from button { border: 0; background: none; color: inherit; padding: 0 5px; font-size: 14px; line-height: 1; }
+.sw { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 2px 0; color: var(--fg); font-size: calc(13.5px * var(--t)); }
+.sw i { width: 30px; height: 17px; border-radius: 999px; background: var(--line); position: relative; flex: none; transition: background .15s; }
+.sw i::after { content: ""; position: absolute; left: 2px; top: 2px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 2px rgb(0 0 0 / .25); }
+.sw.on i { background: var(--accent); }
+.sw.on i::after { transform: translateX(13px); }
+.rb-tools .grow { margin-left: auto; }
+.rv-body { display: grid; grid-template-columns: minmax(calc(260px * var(--t)), 2fr) minmax(0, 3fr); gap: 26px; margin-top: 14px; }
+.rv-body h2, .notes h2 { font-size: calc(15px * var(--t)); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.rv-body h2 .sub, .notes h2 .sub { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: calc(12.5px * var(--t)); margin-left: auto; }
+ul.ings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ing { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 5px 4px; border-bottom: 1px solid color-mix(in srgb, var(--line) 55%, transparent); line-height: 1.35; }
+.ing input { margin: 0; transform: translateY(2px); accent-color: var(--accent); }
+.ing.got .nm, .ing.got .amt { text-decoration: line-through; color: var(--muted); }
+.ing.off .nm, .ing.off .amt { color: var(--muted); opacity: .6; text-decoration: line-through; }
+.amt { border: 0; background: none; padding: 0 3px; margin: 0 -3px; border-radius: 4px; font-weight: 600; color: var(--fg); white-space: nowrap; text-align: left; font-variant-numeric: tabular-nums; }
+.amt:hover { background: var(--accent-soft); color: var(--accent); }
+.amt.rounded { text-decoration: underline dotted color-mix(in srgb, var(--muted) 70%, transparent); text-underline-offset: 3px; }
+.amt.rb-none { color: var(--muted); font-weight: 400; cursor: default; }
+.amt.rb-none:hover { background: none; }
+.amt-in { width: calc(110px * var(--t)); padding: 1px 6px !important; font-weight: 600; }
+.nm { overflow-wrap: anywhere; }
+.nm .ing-note, .nm .size { color: var(--muted); }
+.opt { border: 1px solid var(--line); background: none; border-radius: 999px; padding: 0 8px 0 5px; font-size: calc(11.5px * var(--t)); color: var(--muted); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.opt i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--muted); }
+.opt.on { color: var(--ok); border-color: var(--ok); }
+.opt.on i { background: var(--ok); border-color: var(--ok); }
+.ing-head { font-weight: 600; padding: 12px 4px 4px; color: var(--fg); border-bottom: 1px solid var(--line); }
+.ing-head:first-child { padding-top: 0; }
+ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.step { display: grid; grid-template-columns: calc(28px * var(--t)) minmax(0, 1fr); gap: 10px; line-height: 1.55; }
+.step .num { width: calc(26px * var(--t)); height: calc(26px * var(--t)); border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; display: grid; place-items: center; font-size: calc(13px * var(--t)); margin-top: 1px; }
+.ref { border-bottom: 1px dotted var(--accent); cursor: help; }
+.tmr { border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 0 8px 0 6px; font: inherit; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; line-height: 1.35; }
+.tmr:hover { background: var(--accent); color: var(--accent-fg); }
+.tmr svg { width: 13px; height: 13px; }
+.notes { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 26px; margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--line); }
+.pin { width: 100%; min-height: 90px; resize: vertical; line-height: 1.45; field-sizing: content; max-height: 260px; }
+.log { display: flex; flex-direction: column; gap: 6px; }
+.log-e { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.log-e .d { color: var(--muted); font-size: calc(13px * var(--t)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.log-e .t { overflow-wrap: anywhere; }
+.log-e.editing { grid-template-columns: auto auto minmax(0, 1fr); }
+.log-e input[type=text] { width: 100%; padding: 3px 7px; }
+.log-e input[type=date] { padding: 2px 5px; }
+.rate { display: inline-flex; gap: 0; }
+.rate button { border: 0; background: none; padding: 0 1px; font-size: calc(17px * var(--t)); line-height: 1; color: var(--line); }
+.rate button.on { color: var(--soon); }
+.rate.ro button { cursor: default; font-size: calc(14px * var(--t)); }
+.empty-note { color: var(--muted); font-size: calc(13.5px * var(--t)); margin: 0; }
+
+/* editor */
+.ed { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
+.ed-top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: start; }
+.ed-title { font-size: calc(22px * var(--t)) !important; font-weight: 600; width: 100%; padding: 6px 10px !important; }
+.ed-meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; align-items: center; }
+.ed-meta label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: calc(13px * var(--t)); }
+.ed-meta input { padding: 4px 8px; }
+.ed-meta .srv { width: calc(64px * var(--t)); }
+.ed-meta .tim { width: calc(120px * var(--t)); }
+.ed-meta .tgs { width: calc(240px * var(--t)); }
+.ph-slot { width: calc(150px * var(--t)); height: calc(96px * var(--t)); border: 1.5px dashed var(--line); border-radius: 10px; display: grid; place-items: center; color: var(--muted); font-size: calc(12.5px * var(--t)); text-align: center; padding: 6px; background: var(--card) center / cover no-repeat; cursor: pointer; }
+.ph-slot:hover, .ed.drop .ph-slot { border-color: var(--accent); color: var(--accent); }
+.ph-slot.has { border-style: solid; color: transparent; }
+.ed-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; }
+.ed-col { display: flex; flex-direction: column; min-height: 0; gap: 6px; }
+.ed-col h2 { font-size: calc(13px * var(--t)); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); display: flex; justify-content: space-between; align-items: baseline; }
+.ed-col h2 small { text-transform: none; letter-spacing: 0; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-left: 10px; }
+.ed-col textarea { flex: 1; min-height: calc(130px * var(--t)); resize: none; font-family: inherit; line-height: 1.6; padding: 8px 10px; }
+.sugg { display: flex; gap: 5px; flex-wrap: wrap; min-height: calc(22px * var(--t)); align-items: center; }
+.sugg button { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 0 9px; font-size: calc(12.5px * var(--t)); color: var(--fg); }
+.sugg button:first-of-type { border-color: var(--accent); color: var(--accent); }
+.sugg small { color: var(--muted); font-size: calc(11.5px * var(--t)); }
+.pv { flex: none; max-height: 40%; overflow: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--card); padding: 4px 0; font-size: calc(13px * var(--t)); }
+.pv-r { display: grid; grid-template-columns: calc(48px * var(--t)) calc(50px * var(--t)) minmax(0, 1fr); gap: 6px; padding: 2px 10px; align-items: baseline; }
+.pv-r .q { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.pv-r .u { color: var(--accent); }
+.pv-r .x { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pv-r .x i { color: var(--muted); font-style: normal; }
+.pv-r .o { font-size: calc(11px * var(--t)); color: var(--ok); border: 1px solid var(--ok); border-radius: 999px; padding: 0 5px; margin-left: 4px; }
+.pv-r.h { grid-template-columns: 1fr; font-weight: 600; padding-top: 5px; }
+.pv-r .no { color: var(--muted); text-align: right; font-size: calc(11.5px * var(--t)); }
+.ed-foot { display: flex; gap: 8px; align-items: center; flex: none; }
+.ed-foot .ed-hint { margin-right: auto; color: var(--muted); font-size: calc(12.5px * var(--t)); }
+
+/* grocery */
+.gv { display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
+.gv-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.gv-head h1 { margin-right: auto; }
+.gv-head .sub { color: var(--muted); }
+.gv-recs { display: flex; flex-wrap: wrap; gap: 6px; }
+.gv-rec { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 2px 6px 2px 12px; display: inline-flex; align-items: center; gap: 6px; font-size: calc(13px * var(--t)); }
+.gv-rec b { font-weight: 600; }
+.gv-rec span { color: var(--muted); }
+.gv-rec button { border: 0; background: none; color: var(--muted); padding: 0 4px; font-size: 15px; line-height: 1; }
+.gv-rec button:hover { color: var(--late); }
+.gv-add { display: flex; gap: 6px; }
+.gv-add input { flex: 1; }
+ul.gl { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.gl li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 7px 12px; border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); }
+.gl li:first-child { border-top: 0; }
+.gl li.rb-done .gt { text-decoration: line-through; color: var(--muted); }
+.gl li input { margin: 0; accent-color: var(--accent); width: 16px; height: 16px; }
+.gl .gt b { font-weight: 600; margin-right: 6px; }
+.gl .gs { color: var(--muted); font-size: calc(12px * var(--t)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: calc(220px * var(--t)); }
+.gl .sep { display: block; padding: 6px 12px; color: var(--muted); font-size: calc(12px * var(--t)); text-transform: uppercase; letter-spacing: .06em; background: var(--col); }
+
+/* cook mode */
+.cook { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.cm-top { display: flex; align-items: center; gap: 14px; padding: 10px 18px; border-bottom: 1px solid var(--line); }
+.cm-top b { font-size: calc(17px * var(--t)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm-top .n { color: var(--muted); margin-right: auto; white-space: nowrap; }
+.cm-body { display: grid; grid-template-columns: minmax(0, 1fr) calc(300px * var(--t)); min-height: 0; }
+.cm-main { overflow: auto; padding: 28px 40px; display: flex; flex-direction: column; gap: 22px; }
+.cm-num { color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: calc(14px * var(--t)); }
+.cm-text { font-size: calc(27px * var(--t)); line-height: 1.5; max-width: 900px; }
+.cm-text .tmr { font-size: .8em; vertical-align: .08em; }
+.cm-use { border: 1px solid var(--line); border-radius: 12px; background: var(--card); padding: 12px 16px; max-width: 700px; }
+.cm-use h3 { font-size: calc(13px * var(--t)); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+.cm-use ul { margin: 0; padding: 0; list-style: none; font-size: calc(19px * var(--t)); display: flex; flex-direction: column; gap: 4px; }
+.cm-use li b { margin-right: 8px; }
+.cm-use .rb-none { color: var(--muted); font-size: calc(15px * var(--t)); }
+.cm-all { border-left: 1px solid var(--line); overflow: auto; padding: 18px 16px; }
+.cm-all h3 { font-size: calc(13px * var(--t)); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+.cm-all ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.cm-all li { display: flex; gap: 8px; align-items: baseline; padding: 4px 6px; border-radius: 6px; cursor: pointer; line-height: 1.35; }
+.cm-all li:hover { background: var(--accent-soft); }
+.cm-all li.now { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.cm-all li.got { color: var(--muted); text-decoration: line-through; }
+.cm-all li .cm-box { flex: none; width: 14px; height: 14px; border: 1.5px solid var(--muted); border-radius: 4px; transform: translateY(2px); }
+.cm-all li.got .cm-box { background: var(--ok); border-color: var(--ok); }
+.cm-all li.grp { font-weight: 600; cursor: default; padding-top: 10px; }
+.cm-all li.grp:hover { background: none; }
+.cm-foot { display: flex; align-items: center; gap: 14px; padding: 12px 18px; border-top: 1px solid var(--line); }
+.cm-foot .primary, .cm-foot .quiet { min-width: calc(110px * var(--b)); }
+.dots { flex: 1; display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.dots button { width: 10px; height: 10px; border-radius: 50%; border: 0; padding: 0; background: var(--line); }
+.dots button.on { background: var(--accent); transform: scale(1.3); }
+.dots button.past { background: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.cm-done { margin: auto; text-align: center; display: flex; flex-direction: column; gap: 14px; align-items: center; max-width: 520px; }
+.cm-done h2 { font-size: calc(28px * var(--t)); }
+.cm-done .rate button { font-size: calc(34px * var(--t)); }
+.cm-done input { width: min(440px, 80vw); }
+
+/* timers */
+.timers { position: fixed; right: 14px; bottom: 14px; z-index: 25; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.tm { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px 6px 12px; box-shadow: 0 4px 16px rgb(0 0 0 / .14); min-width: calc(200px * var(--t)); }
+.tm .lb { display: flex; flex-direction: column; min-width: 0; margin-right: auto; }
+.tm .lb small { color: var(--muted); font-size: calc(11.5px * var(--t)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: calc(170px * var(--t)); }
+.tm .left { font-size: calc(20px * var(--t)); font-weight: 700; font-variant-numeric: tabular-nums; }
+.tm.paused .left { color: var(--muted); }
+.tm.ring { border-color: var(--late); background: var(--late-soft); animation: ring 1s infinite; }
+.tm.ring .left { color: var(--late); }
+@keyframes ring { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--late) 30%, transparent); } }
+.tm button { border: 0; background: none; color: var(--muted); padding: 2px 4px; border-radius: 5px; font-size: 15px; line-height: 1; }
+.tm button:hover { color: var(--accent); background: var(--accent-soft); }
+
+.lightbox { position: fixed; inset: 0; z-index: 30; background: rgb(0 0 0 / .7); display: grid; place-items: center; cursor: zoom-out; }
+.lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 10px; }
+@media (max-width: 980px) {
+  .rv-body, .notes { grid-template-columns: minmax(0, 1fr); }
+  .cm-body { grid-template-columns: minmax(0, 1fr); }
+  .cm-all { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .tm.ring { animation: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rb-side">
+    <div class="rb-top">
+      <input id="q" type="search" placeholder="Search recipes or ingredients" aria-label="Search recipes or ingredients" autocomplete="off">
+      <button id="new" class="primary" type="button" title="New recipe (N)">+ New</button>
+    </div>
+    <div id="filters" class="filters"></div>
+    <div id="list" class="rb-list"></div>
+    <div class="rb-foot">
+      <div class="row">
+        <button id="gro" class="quiet gro-btn" type="button" title="Grocery list (G)">Grocery list</button>
+        <button id="more" class="icon-btn" type="button" title="More" aria-label="More"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg></button>
+      </div>
+      <div class="keys"><kbd>N</kbd> new &nbsp; <kbd>/</kbd> search &nbsp; <kbd>Ctrl</kbd>+<kbd>V</kbd> paste a recipe</div>
+    </div>
+  </aside>
+  <main id="main" class="main"></main>
+</div>
+<div id="cook" class="cook" hidden></div>
+<div id="timers" class="timers"></div>
+<input id="file" type="file" accept="image/*" hidden>
+<input id="importFile" type="file" accept=".json,application/json" hidden>
+<script>
+"use strict";
+/* Recipes add-on. Data (tome.data, one object):
+   { v, recipes: [{ id, title, servings, time, tags, fav, photo, ings: [{ id, text }], steps: [{ id, text, use }], note,
+     log: [{ id, date, stars, note }], off: [ingredient ids switched off], got: [ticked ingredient ids], created, updated }],
+     grocery: { items: [{ rid, factor }], extra: [{ id, text, done }], done: { key: true } },
+     prefs: { round, units: "us" | "metric", sort }, ui: { sel, view, filter, scale: { rid: factor } }, draft }
+   Ingredient lines are kept as typed and read each time they're shown ("1 1/2 cups flour, sifted"). */
+
+/* ---------- small helpers ---------- */
+const $ = id => document.getElementById(id);
+function h(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const arr = v => Array.isArray(v) ? v : [];
+const str = v => typeof v === "string" ? v : "";
+const obj = v => v && typeof v === "object" && !Array.isArray(v) ? v : {};
+const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+const todayStr = () => { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); };
+function dayText(s) {
+  if (!s) return "";
+  const [y, m, d] = s.split("-").map(Number), dt = new Date(y, m - 1, d), now = new Date();
+  if (s === todayStr()) return "Today";
+  const opt = { month: "short", day: "numeric" };
+  if (y !== now.getFullYear()) opt.year = "numeric";
+  return dt.toLocaleDateString(undefined, opt);
+}
+const ICON = {
+  star: '<svg viewBox="0 0 24 24"><path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z" stroke-linejoin="round"/></svg>',
+  edit: '<svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4" stroke-linejoin="round"/></svg>',
+  cart: '<svg viewBox="0 0 24 24"><path d="M3 4h2.5l2.2 10.5h10.6L20.5 8H7" stroke-linejoin="round" stroke-linecap="round"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="17" cy="19" r="1.4"/></svg>',
+  more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg>',
+  clock: '<svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9.5 3h5" stroke-linecap="round"/></svg>',
+  play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/></svg>',
+  pause: '<svg viewBox="0 0 24 24"><path d="M8 5h3v14H8zM13 5h3v14h-3z" fill="currentColor" stroke="none"/></svg>',
+};
+
+/* ---------- data ---------- */
+const VER = 1;
+function blank() {
+  return { v: VER, recipes: [], grocery: { items: [], extra: [], done: {} }, prefs: { round: true, units: "us", sort: "recent" }, ui: { sel: null, view: "recipe", filter: "all", scale: {} }, draft: null };
+}
+function cleanRecipe(r) {
+  r = obj(r);
+  return {
+    id: str(r.id) || uid(), title: str(r.title), servings: Number(r.servings) > 0 ? Number(r.servings) : null, time: str(r.time),
+    tags: arr(r.tags).map(t => str(t).trim()).filter(Boolean), fav: !!r.fav, photo: str(r.photo),
+    ings: arr(r.ings).filter(x => x && typeof x.text === "string").map(x => ({ id: str(x.id) || uid(), text: x.text })),
+    steps: arr(r.steps).filter(x => x && typeof x.text === "string").map(x => ({ id: str(x.id) || uid(), text: x.text, use: Array.isArray(x.use) ? x.use.map(String) : null })),
+    note: str(r.note),
+    log: arr(r.log).filter(x => x && x.id).map(x => ({ id: str(x.id), date: /^\d{4}-\d\d-\d\d$/.test(x.date) ? x.date : todayStr(), stars: clamp(Number(x.stars) || 0, 0, 5), note: str(x.note) })),
+    off: arr(r.off).map(String), got: arr(r.got).map(String),
+    created: Number(r.created) || Date.now(), updated: Number(r.updated) || Date.now(),
+  };
+}
+function clean(v) {
+  const o = obj(v), s = blank();
+  if (!Array.isArray(o.recipes)) return s;
+  s.recipes = o.recipes.map(cleanRecipe);
+  const g = obj(o.grocery);
+  s.grocery.items = arr(g.items).filter(x => x && x.rid).map(x => ({ rid: String(x.rid), factor: Number(x.factor) > 0 ? Number(x.factor) : 1 }));
+  s.grocery.extra = arr(g.extra).filter(x => x && x.text).map(x => ({ id: str(x.id) || uid(), text: str(x.text), done: !!x.done }));
+  s.grocery.done = obj(g.done);
+  const p = obj(o.prefs);
+  s.prefs = { round: p.round !== false, units: p.units === "metric" ? "metric" : "us", sort: ["recent", "name", "rating", "made"].includes(p.sort) ? p.sort : "recent" };
+  const u = obj(o.ui);
+  s.ui = { sel: str(u.sel) || null, view: ["recipe", "edit", "grocery"].includes(u.view) ? u.view : "recipe", filter: str(u.filter) || "all", scale: obj(u.scale) };
+  s.draft = o.draft && typeof o.draft === "object" ? o.draft : null;
+  if (s.ui.view === "edit" && !s.draft) s.ui.view = "recipe";
+  return s;
+}
+let S = clean(tome.data.get());
+/* Our own saves can come back through onChange: remember what we sent and ignore those echoes. */
+const sent = [];
+function save() { const t = JSON.stringify(S); sent.push(t); if (sent.length > 30) sent.shift(); tome.data.set(S); }
+const byId = id => S.recipes.find(r => r.id === id) || null;
+const sizeMB = () => (JSON.stringify(S).length / 1048576);
+
+/* ---------- units ---------- */
+const TSP = 4.92892, TBSP = 14.7868, CUP = 236.588;
+const U = {
+  tsp: { dim: "vol", b: TSP, sys: "us", s: "tsp", p: "tsp" },
+  tbsp: { dim: "vol", b: TBSP, sys: "us", s: "tbsp", p: "tbsp" },
+  cup: { dim: "vol", b: CUP, sys: "us", s: "cup", p: "cups" },
+  floz: { dim: "vol", b: 29.5735, sys: "us", s: "fl oz", p: "fl oz" },
+  pint: { dim: "vol", b: 473.176, sys: "us", s: "pint", p: "pints" },
+  quart: { dim: "vol", b: 946.353, sys: "us", s: "quart", p: "quarts" },
+  gallon: { dim: "vol", b: 3785.41, sys: "us", s: "gallon", p: "gallons" },
+  ml: { dim: "vol", b: 1, sys: "metric", s: "ml", p: "ml" },
+  dl: { dim: "vol", b: 100, sys: "metric", s: "dl", p: "dl" },
+  l: { dim: "vol", b: 1000, sys: "metric", s: "L", p: "L" },
+  oz: { dim: "wt", b: 28.3495, sys: "us", s: "oz", p: "oz" },
+  lb: { dim: "wt", b: 453.592, sys: "us", s: "lb", p: "lb" },
+  g: { dim: "wt", b: 1, sys: "metric", s: "g", p: "g" },
+  kg: { dim: "wt", b: 1000, sys: "metric", s: "kg", p: "kg" },
+};
+const AL = {};
+const al = (k, ...w) => w.forEach(x => { AL[x] = k; });
+al("tsp", "tsp", "tsps", "teaspoon", "teaspoons", "tspn");
+al("tbsp", "tbsp", "tbsps", "tbs", "tbl", "tbls", "tblsp", "tablespoon", "tablespoons");
+al("cup", "cup", "cups", "c");
+al("oz", "oz", "ounce", "ounces");
+al("lb", "lb", "lbs", "pound", "pounds");
+al("pint", "pint", "pints", "pt", "pts");
+al("quart", "quart", "quarts", "qt", "qts");
+al("gallon", "gallon", "gallons", "gal", "gals");
+al("ml", "ml", "milliliter", "milliliters", "millilitre", "millilitres", "cc");
+al("dl", "dl", "deciliter", "deciliters", "decilitre", "decilitres");
+al("l", "l", "liter", "liters", "litre", "litres");
+al("g", "g", "gram", "grams", "gr", "gramme", "grammes");
+al("kg", "kg", "kilogram", "kilograms", "kilo", "kilos");
+[["pinch", "pinches"], ["dash", "dashes"], ["clove", "cloves"], ["can", "cans"], ["package", "packages"], ["stick", "sticks"], ["slice", "slices"],
+ ["piece", "pieces"], ["bunch", "bunches"], ["sprig", "sprigs"], ["head", "heads"], ["jar", "jars"], ["bag", "bags"], ["handful", "handfuls"],
+ ["stalk", "stalks"], ["sheet", "sheets"], ["box", "boxes"], ["bottle", "bottles"], ["packet", "packets"], ["envelope", "envelopes"],
+ ["container", "containers"], ["drop", "drops"], ["leaf", "leaves"], ["fillet", "fillets"], ["strip", "strips"]].forEach(([s, p]) => { U[s] = { dim: "count", s, p }; al(s, s, p); });
+al("package", "pkg", "pkgs"); al("packet", "pkt", "pkts");
+const NO_QTY_OK = new Set(["pinch", "dash", "handful"]);
+const FRS = { "½": "1/2", "⅓": "1/3", "⅔": "2/3", "¼": "1/4", "¾": "3/4", "⅕": "1/5", "⅖": "2/5", "⅗": "3/5", "⅘": "4/5", "⅙": "1/6", "⅚": "5/6", "⅛": "1/8", "⅜": "3/8", "⅝": "5/8", "⅞": "7/8" };
+const FR_RE = /[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞]/g;
+const NUM = "(?:\\d+\\s+\\d+\\/\\d+|\\d+\\/\\d+|\\d*\\.\\d+|\\d+(?:,\\d{1,2}(?!\\d))?)";
+const QTY_RE = new RegExp("^(" + NUM + ")(?:(?:\\s*[-–]\\s*|\\s+(?:to|or)\\s+)(" + NUM + "))?\\s*(.*)$", "i");
+function numVal(s) {
+  s = String(s).trim().replace(",", ".");
+  let m = s.match(/^(\d+)\s+(\d+)\/(\d+)$/);
+  if (m) return Number(m[1]) + Number(m[2]) / (Number(m[3]) || 1);
+  m = s.match(/^(\d+)\/(\d+)$/);
+  if (m) return Number(m[1]) / (Number(m[2]) || 1);
+  return Number(s);
+}
+function unitAt(s) {
+  let m = s.match(/^(fl\.?\s?oz\.?|fluid\s+ounces?)(?=[\s,)]|$)\s*/i);
+  if (m) return { key: "floz", rest: s.slice(m[0].length) };
+  m = s.match(/^([A-Za-z]+)\.?(?=[\s,)]|$)\s*/);
+  if (!m) return null;
+  const w = m[1];
+  let key = null;
+  if (w === "T" || w === "Tb" || w === "TB" || w === "Tbs" || w === "TBS") key = "tbsp";
+  else if (w === "t") key = "tsp";
+  else key = AL[w.toLowerCase()] || null;
+  return key ? { key, rest: s.slice(m[0].length) } : null;
+}
+/* One ingredient line: { head } for a group heading ("Sauce:"), else { qty, qty2, unit, size, name, note, optional }. */
+function parseIng(raw) {
+  let s = String(raw || "").trim();
+  if (!s) return null;
+  s = s.replace(/^[-*•·▢☐□○●◦▪]+\s*/, "");
+  let optional = false;
+  if (/^\?\s*/.test(s)) { optional = true; s = s.replace(/^\?\s*/, ""); }
+  if (/^optional:?\s+/i.test(s)) { optional = true; s = s.replace(/^optional:?\s+/i, ""); }
+  if (/\(\s*optional\s*\)/i.test(s)) { optional = true; s = s.replace(/\s*\(\s*optional\s*\)\s*/i, " ").trim(); }
+  if (/,?\s*\boptional\s*$/i.test(s)) { optional = true; s = s.replace(/,?\s*\boptional\s*$/i, "").trim(); }
+  if (/:\s*$/.test(s) && !/^\d/.test(s) && s.length < 60) return { head: true, name: s.replace(/:\s*$/, "").trim() };
+  s = s.replace(/(\d)(?=[½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])/g, "$1 ").replace(FR_RE, f => FRS[f]).replace(/⁄/g, "/").replace(/\s+/g, " ").trim();
+  let qty = null, qty2 = null, unit = null, size = "";
+  const m = s.match(QTY_RE);
+  if (m) { qty = numVal(m[1]); if (m[2]) qty2 = numVal(m[2]); s = m[3]; }
+  else { const a = s.match(/^(an?|one)\s+(.*)$/i); if (a && unitAt(a[2])) { qty = 1; s = a[2]; } }
+  let p = s.match(/^\(([^)]{1,40})\)\s*(.*)$/);
+  if (p && qty != null) { size = p[1]; s = p[2]; }
+  const u = unitAt(s);
+  if (u && (qty != null || NO_QTY_OK.has(u.key))) { unit = u.key; s = u.rest; if (qty == null) qty = 1; }
+  p = s.match(/^\(([^)]{1,40})\)\s*(.*)$/);
+  if (p && !size && unit) { size = p[1]; s = p[2]; }
+  s = s.replace(/^of\s+/i, "");
+  let name = s, note = "";
+  const c = s.search(/,|\s[-–]\s/);
+  if (c > 0) { name = s.slice(0, c).trim(); note = s.slice(c).replace(/^[,\s\-–]+/, "").trim(); }
+  if (!isFinite(qty)) qty = null;
+  if (!isFinite(qty2)) qty2 = null;
+  return { head: false, qty, qty2, unit, size, name: name.trim(), note, optional };
+}
+
+/* ---------- amounts: scaling, units, rounding ---------- */
+const FRL = [[0, ""], [1 / 8, "⅛"], [1 / 4, "¼"], [1 / 3, "⅓"], [3 / 8, "⅜"], [1 / 2, "½"], [5 / 8, "⅝"], [2 / 3, "⅔"], [3 / 4, "¾"], [7 / 8, "⅞"], [1, ""]];
+function nice(n) {
+  if (n == null || !isFinite(n)) return "";
+  const w = Math.floor(n + 1e-9), f = n - w;
+  for (const [v, g] of FRL) if (Math.abs(f - v) < 0.013) { const W = v === 1 ? w + 1 : w; return W ? W + g : (g || "0"); }
+  return String(Math.round(n * 100) / 100);
+}
+const dec = n => String(n >= 100 ? Math.round(n) : n >= 10 ? Math.round(n * 10) / 10 : Math.round(n * 100) / 100);
+const label = (k, q) => { const u = U[k]; return u ? (q > 1.0001 ? u.p : u.s) : ""; };
+function fmtNum(q, k) { return k && U[k] && U[k].sys === "metric" ? dec(q) : nice(q); }
+function fmtParts(parts) {
+  if (parts.pinch) return "a pinch";
+  return parts.map(([q, k]) => (fmtNum(q, k) + (k ? " " + label(k, q) : ""))).join(" + ");
+}
+function fmtRange(a, b) {
+  if (!b) return fmtParts(a);
+  if (a.length === 1 && b.length === 1 && a[0][1] === b[0][1] && !a.pinch && !b.pinch) {
+    const k = a[0][1];
+    return fmtNum(a[0][0], k) + "-" + fmtNum(b[0][0], k) + (k ? " " + label(k, b[0][0]) : "");
+  }
+  return fmtParts(a) + " to " + fmtParts(b);
+}
+/* Exact amounts in a unit system (no rounding). Base is ml or g; prefer keeps a unit already in that system. */
+function exactBase(base, dim, sys, prefer) {
+  if (prefer && U[prefer] && U[prefer].sys === sys) return [[base / U[prefer].b, prefer]];
+  if (dim === "vol") {
+    if (sys === "metric") return base >= 1000 ? [[base / 1000, "l"]] : [[base, "ml"]];
+    return base < TBSP ? [[base / TSP, "tsp"]] : base < CUP / 4 ? [[base / TBSP, "tbsp"]] : [[base / CUP, "cup"]];
+  }
+  if (sys === "metric") return base >= 1000 ? [[base / 1000, "kg"]] : [[base, "g"]];
+  const oz = base / U.oz.b;
+  return oz < 16 ? [[oz, "oz"]] : [[oz / 16, "lb"]];
+}
+/* Kitchen sizes for US volume: single measures, and "cup + tbsp" or "tbsp + tsp" when that's much closer. */
+const US_VOL = (() => {
+  const one = [], two = [];
+  [1 / 8, 1 / 4, 1 / 2, 3 / 4, 1, 1.5, 2].forEach(q => one.push({ ml: q * TSP, parts: [[q, "tsp"]] }));
+  [1, 1.5, 2, 3].forEach(q => one.push({ ml: q * TBSP, parts: [[q, "tbsp"]] }));
+  const cups = new Set();
+  for (let k = 1; k <= 64; k++) cups.add(Math.round(k / 4 * 1000) / 1000);
+  for (let k = 1; k <= 48; k++) if (k % 3) cups.add(Math.round(k / 3 * 1000) / 1000);
+  [...cups].forEach(q => {
+    one.push({ ml: q * CUP, parts: [[q, "cup"]] });
+    [1, 2, 3].forEach(t => two.push({ ml: q * CUP + t * TBSP, parts: [[q, "cup"], [t, "tbsp"]] }));
+    [1, 1.5, 2].forEach(t => two.push({ ml: q * CUP + t * TSP, parts: [[q, "cup"], [t, "tsp"]] }));
+  });
+  [1, 2].forEach(t => [1, 2].forEach(s => two.push({ ml: t * TBSP + s * TSP, parts: [[t, "tbsp"], [s, "tsp"]] })));
+  return { one, two };
+})();
+function roundBase(base, dim, sys) {
+  if (dim === "vol") {
+    if (sys === "us") {
+      if (base < TSP / 8 * 0.7) { const p = [[base / TSP, "tsp"]]; p.pinch = true; return p; }
+      const pick = list => list.reduce((b, c) => { const e = Math.abs(c.ml - base) / base; return e < b.e ? { c, e } : b; }, { c: null, e: Infinity });
+      const a = pick(US_VOL.one), b = pick(US_VOL.two);
+      return (a.e > 0.04 && b.e < a.e * 0.5 ? b : a).c.parts;
+    }
+    if (base >= 1000) return [[Math.round(base / 100) / 10, "l"]];
+    const step = base < 10 ? 1 : base < 100 ? 5 : base < 250 ? 10 : 25;
+    const q = Math.max(step, Math.round(base / step) * step);
+    return q >= 1000 ? [[q / 1000, "l"]] : [[q, "ml"]];
+  }
+  if (sys === "us") {
+    const oz = base / U.oz.b;
+    if (oz < 15.75) { const st = oz < 4 ? 0.25 : 0.5; return [[Math.max(st, Math.round(oz / st) * st), "oz"]]; }
+    return [[Math.max(1, Math.round(oz / 16 * 4) / 4), "lb"]];
+  }
+  if (base >= 1000) return [[Math.round(base / 50) * 50 / 1000, "kg"]];
+  const step = base < 10 ? 1 : base < 100 ? 5 : base < 500 ? 10 : 25;
+  const q = Math.max(step, Math.round(base / step) * step);
+  return q >= 1000 ? [[q / 1000, "kg"]] : [[q, "g"]];
+}
+function roundCount(q, k) {
+  if (k === "pinch" || k === "dash" || k === "drop") return Math.max(1, Math.round(q));
+  return q < 1 ? Math.max(0.25, Math.round(q * 4) / 4) : Math.round(q * 2) / 2;
+}
+/* parts for a quantity in a unit, after scaling: exact (as written or converted), or rounded to kitchen sizes. */
+function partsFor(q, k, sys, round) {
+  const u = k ? U[k] : null;
+  if (!u || u.dim === "count") return [[round ? roundCount(q, k) : q, k]];
+  if (round) return roundBase(q * u.b, u.dim, sys);
+  return exactBase(q * u.b, u.dim, sys, k);
+}
+/* How an ingredient's amount shows at factor f: { text, exact (when rounded), parts }. Rounding applies once the
+   amount was scaled or moved to the other unit system; otherwise it shows as written. */
+function amountOf(p, f) {
+  if (!p || p.qty == null) return null;
+  const sys = S.prefs.units, u = p.unit ? U[p.unit] : null;
+  const changed = Math.abs(f - 1) > 1e-9 || (u && u.sys && u.sys !== sys);
+  const round = S.prefs.round && changed;
+  const ea = partsFor(p.qty * f, p.unit, sys, false), eb = p.qty2 != null ? partsFor(p.qty2 * f, p.unit, sys, false) : null;
+  const exact = fmtRange(ea, eb);
+  if (!round) return { text: exact, exact: null, parts: ea };
+  const ra = partsFor(p.qty * f, p.unit, sys, true), rb = p.qty2 != null ? partsFor(p.qty2 * f, p.unit, sys, true) : null;
+  const text = fmtRange(ra, rb);
+  return { text, exact: text === exact ? null : exact, parts: ra };
+}
+function ingText(p, f) {
+  const a = amountOf(p, f);
+  return (a ? a.text + " " : "") + p.name + (p.size ? " (" + p.size + ")" : "") + (p.note ? ", " + p.note : "");
+}
+const factorOf = r => { const f = Number(S.ui.scale[r.id]); return f > 0 ? f : 1; };
+const xText = f => (Math.abs(f - Math.round(f * 4) / 4) < 1e-6 ? nice(f) : dec(f)) + "×";
+
+/* ---------- ingredient words in steps ---------- */
+const STOP = new Set("a an and or of the to for with in on at into large small medium big fresh freshly chopped finely roughly coarsely minced sliced diced cubed grated shredded ground whole dried dry unsalted salted softened melted cold warm hot room temperature boneless skinless extra virgin all purpose all-purpose granulated packed light dark plain raw cooked peeled seeded pitted halved quartered thinly thick thin about plus more taste needed divided optional heaping level good quality organic store bought homemade lean ripe crushed toasted beaten lightly cut into inch pieces".split(" "));
+const FORMS = new Set("breast breasts thigh thighs drumstick drumsticks wing wings floret florets fillet fillets leaf leaves stalk stalks sprig sprigs clove cloves wedge wedges strip strips chunk chunks piece pieces cube cubes slice slices tenderloin loin tops".split(" "));
+const sing = w => w.length > 4 && /ies$/.test(w) ? w.slice(0, -3) + "y" : w.length > 4 && /(ches|shes|oes|sses)$/.test(w) ? w.slice(0, -2) : w.length > 3 && /s$/.test(w) && !/ss$/.test(w) ? w.slice(0, -1) : w;
+function termsOf(name) {
+  const words = String(name).toLowerCase().replace(/\([^)]*\)/g, " ").split(/[^a-z']+/).filter(w => w.length > 2 && !STOP.has(w));
+  if (!words.length) return [];
+  const last = words[words.length - 1], s = sing(last), out = new Set([words.join(" "), last, s, s + "s", s + "es"]);
+  if (/y$/.test(s)) out.add(s.slice(0, -1) + "ies");
+  /* "chicken breast", "broccoli florets": the step usually just says chicken or broccoli */
+  if (words.length > 1 && FORMS.has(last)) { const w = words[words.length - 2], ws = sing(w); [w, ws, ws + "s"].forEach(x => out.add(x)); }
+  return [...out].filter(t => t.length > 2);
+}
+function normName(n) {
+  const w = String(n).toLowerCase().replace(/\([^)]*\)/g, " ").split(/[^a-z']+/).filter(x => x && !STOP.has(x)).map(sing);
+  return w.length ? w.join(" ") : String(n).toLowerCase().trim();
+}
+function termMap(r) {
+  const map = new Map();
+  r.ings.forEach(ing => { const p = parseIng(ing.text); if (!p || p.head) return; termsOf(p.name).forEach(t => { if (!map.has(t)) map.set(t, ing.id); }); });
+  return map;
+}
+function termRe(map) {
+  if (!map.size) return null;
+  const list = [...map.keys()].sort((a, b) => b.length - a.length).map(t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/ /g, "\\s+"));
+  return new RegExp("\\b(" + list.join("|") + ")\\b", "gi");
+}
+/* Ingredient ids each step uses: matched from the step's words, unless set by hand (step.use). */
+function stepUses(r) {
+  const map = termMap(r), re = termRe(map);
+  return r.steps.map(st => {
+    if (st.use) return st.use.filter(id => r.ings.some(i => i.id === id));
+    const ids = [];
+    if (re) for (const m of st.text.matchAll(re)) { const id = map.get(m[1].toLowerCase().replace(/\s+/g, " ")); if (id && !ids.includes(id)) ids.push(id); }
+    return ids;
+  });
+}
+const TIMER_RE = /(\d+(?:\.\d+)?\s?[½¼¾]?|[½¼¾])(?:\s*(?:-|–|to)\s*(\d+(?:\.\d+)?))?\s*(hours?|hrs?|minutes?|mins?|seconds?|secs?)\b/gi;
+function secsOf(n, unit) {
+  let v = 0;
+  const m = String(n).match(/(\d+(?:\.\d+)?)?\s?([½¼¾])?/);
+  if (m) v = (Number(m[1]) || 0) + ({ "½": .5, "¼": .25, "¾": .75 }[m[2]] || 0);
+  const u = unit.toLowerCase();
+  return Math.round(v * (/^h/.test(u) ? 3600 : /^m/.test(u) ? 60 : 1));
+}
+/* Step text as HTML: timer buttons and dotted ingredient words (hover shows the amount). */
+function stepHtml(r, st, f) {
+  const map = termMap(r), re = termRe(map), text = st.text;
+  let out = "", last = 0;
+  const words = seg => {
+    const e = esc(seg);
+    if (!re) return e;
+    return e.replace(re, (w) => {
+      const id = map.get(w.toLowerCase().replace(/\s+/g, " "));
+      const ing = r.ings.find(i => i.id === id), p = ing && parseIng(ing.text);
+      return p ? '<span class="ref" title="' + esc(ingText(p, f)) + '">' + w + "</span>" : w;
+    });
+  };
+  for (const m of text.matchAll(TIMER_RE)) {
+    const secs = secsOf(m[1], m[3]);
+    if (!secs) continue;
+    out += words(text.slice(last, m.index));
+    out += '<button type="button" class="tmr" data-secs="' + secs + '" data-label="' + esc(m[0]) + '" title="Start a ' + esc(m[0]) + ' timer">' + ICON.clock + esc(m[0]) + "</button>";
+    last = m.index + m[0].length;
+  }
+  return out + words(text.slice(last));
+}
+
+/* ---------- whole recipes as text (paste in, copy out) ---------- */
+const H_ING = /^(ingredients?|what you('|’)?ll need|you('|’)?ll need|you will need|shopping list)\s*:?$/i;
+const H_STEP = /^(directions?|instructions?|method|steps?|preparation|how to make( it)?|procedure)\s*:?$/i;
+const H_NOTE = /^(notes?|tips?|cook('|’)?s notes?|recipe notes?)\s*:?$/i;
+const JUNK = /^(print|pin|save|share|jump to|advertisement|rate this|\d+ (reviews?|ratings?)|cook mode|prevent your screen|us customary|metric$|(\d+(\.\d+)?x\s*)+$)/i;
+const ingLike = l => { const p = parseIng(l); return !!p && !p.head && p.qty != null && l.length < 90; };
+const stepLike = l => /^(step\s*)?\d+[.)]\s+\S/i.test(l) || (l.length > 55 && /[.!]$/.test(l)) || l.length > 90;
+function looksLikeRecipe(text) {
+  const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  if (lines.length < 4) return false;
+  const hi = lines.some(l => H_ING.test(l)), hs = lines.some(l => H_STEP.test(l));
+  if (hi && hs) return true;
+  return lines.filter(ingLike).length >= 2 && lines.filter(stepLike).length >= 1;
+}
+function parseRecipeText(text) {
+  const lines = String(text).replace(/\r/g, "").split("\n").map(l => l.replace(/\t/g, " ").replace(/\s+/g, " ").trim()).filter(l => l && !JUNK.test(l));
+  const out = { title: "", servings: null, time: "", tags: [], ings: [], steps: [], note: "" };
+  const metaOne = (l, combo) => {
+    if (combo && /^\d.*\b(min|mins|minutes|hr|hrs|hours?)\b/i.test(l)) { out.time = l; return true; }
+    let m = l.match(/^(?:serves|servings?|yield|yields|makes)\s*:?\s*(\d+(?:\.\d+)?)/i) || l.match(/^(\d+)\s+servings?$/i);
+    if (m) { out.servings = Number(m[1]); return true; }
+    m = l.match(/^(total time|time|ready in)\s*:?\s*(.+)$/i);
+    if (m) { out.time = m[2]; return true; }
+    m = l.match(/^(prep time|cook time|prep|cook)\s*:?\s*(\d.*)$/i);
+    if (m) { if (!out.time) out.time = m[2]; return true; }
+    m = l.match(/^tags?\s*:\s*(.+)$/i);
+    if (m) { out.tags = m[1].split(",").map(s => s.trim()).filter(Boolean); return true; }
+    return false;
+  };
+  const meta = l => {
+    if (/ · /.test(l) && l.length < 80) { const parts = l.split("·").map(x => x.trim()).filter(Boolean); const save = JSON.stringify(out); if (parts.every(x => metaOne(x, true))) return true; Object.assign(out, JSON.parse(save)); }
+    return metaOne(l, false);
+  };
+  const cleanStep = l => l.replace(/^(step\s*)?\d+\s*[.):-]\s*/i, "").replace(/^[-*•·▢☐□]+\s*/, "").trim();
+  const cleanIng = l => l.replace(/^[-*•·▢☐□]+\s*/, "").trim();
+  let sec = "pre";
+  const pre = [];
+  for (const l of lines) {
+    if (H_ING.test(l)) { sec = "ing"; continue; }
+    if (H_STEP.test(l)) { sec = "step"; continue; }
+    if (H_NOTE.test(l)) { sec = "note"; continue; }
+    if (sec === "pre") { if (!meta(l)) pre.push(l); continue; }
+    if (sec === "ing") { if (!meta(l)) out.ings.push(cleanIng(l)); continue; }
+    if (sec === "step") { const s = cleanStep(l); if (s && !/^\d+$/.test(s)) out.steps.push(s); continue; }
+    out.note += (out.note ? "\n" : "") + l;
+  }
+  if (sec === "pre" || (!out.ings.length && !out.steps.length)) {
+    /* No headings: lines with amounts are ingredients, sentences are steps. */
+    const rest = [];
+    pre.forEach((l, i) => {
+      if (i === 0 && !ingLike(l) && l.length < 100) { out.title = l; return; }
+      rest.push(l);
+    });
+    let seenStep = false;
+    rest.forEach(l => {
+      if (!seenStep && (ingLike(l) || (!stepLike(l) && l.length < 45))) out.ings.push(cleanIng(l));
+      else { seenStep = true; const s = cleanStep(l); if (s) out.steps.push(s); }
+    });
+  } else {
+    const t = pre.find(l => l.length < 100 && !ingLike(l));
+    if (t) out.title = t;
+  }
+  out.title = out.title.trim();
+  return out;
+}
+function recipeText(r) {
+  const f = factorOf(r), lines = [r.title];
+  const m = [];
+  if (r.servings) m.push("Serves " + nice(r.servings * f));
+  if (r.time) m.push(r.time);
+  if (m.length) lines.push(m.join(" · "));
+  if (r.tags.length) lines.push("Tags: " + r.tags.join(", "));
+  lines.push("", "Ingredients");
+  r.ings.forEach(i => {
+    const p = parseIng(i.text);
+    if (!p) return;
+    if (p.head) lines.push("", p.name + ":");
+    else lines.push("- " + (p.optional ? "(optional) " : "") + ingText(p, f));
+  });
+  lines.push("", "Directions");
+  r.steps.forEach((s, i) => lines.push((i + 1) + ". " + s.text));
+  if (r.note.trim()) lines.push("", "Notes", r.note.trim());
+  return lines.join("\n");
+}
+
+/* ---------- rendering: library ---------- */
+const avgStars = r => { const s = r.log.filter(x => x.stars > 0); return s.length ? s.reduce((a, x) => a + x.stars, 0) / s.length : 0; };
+const lastMade = r => r.log.reduce((a, x) => (x.date > a ? x.date : a), "");
+function searchHit(r, q) {
+  if (!q) return { ok: true };
+  const toks = q.toLowerCase().split(/\s+/).filter(Boolean);
+  let via = "";
+  const ok = toks.every(t => {
+    if (r.title.toLowerCase().includes(t) || r.tags.some(x => x.toLowerCase().includes(t))) return true;
+    const hit = r.ings.map(i => parseIng(i.text)).find(p => p && !p.head && p.name.toLowerCase().includes(t));
+    if (hit) { via = via || hit.name; return true; }
+    return false;
+  });
+  return { ok, via };
+}
+function visible() {
+  const q = $("q").value.trim(), f = S.ui.filter;
+  let list = S.recipes.map(r => ({ r, hit: searchHit(r, q) })).filter(x => x.hit.ok);
+  if (f === "fav") list = list.filter(x => x.r.fav);
+  else if (f.startsWith("tag:")) { const t = f.slice(4).toLowerCase(); list = list.filter(x => x.r.tags.some(g => g.toLowerCase() === t)); }
+  const so = S.prefs.sort;
+  list.sort((a, b) => so === "name" ? a.r.title.localeCompare(b.r.title)
+    : so === "rating" ? avgStars(b.r) - avgStars(a.r) || a.r.title.localeCompare(b.r.title)
+    : so === "made" ? lastMade(b.r).localeCompare(lastMade(a.r)) || b.r.created - a.r.created
+    : b.r.created - a.r.created);
+  return list;
+}
+function allTags() {
+  const n = new Map();
+  S.recipes.forEach(r => r.tags.forEach(t => { const k = t.toLowerCase(); const e = n.get(k) || { t, c: 0 }; e.c++; n.set(k, e); }));
+  return [...n.values()].sort((a, b) => b.c - a.c || a.t.localeCompare(b.t));
+}
+function renderFilters() {
+  const box = $("filters");
+  box.replaceChildren();
+  if (!S.recipes.length) return;
+  const chip = (lbl, key, title) => {
+    const b = h("button", "chip" + (S.ui.filter === key ? " on" : ""), lbl);
+    b.type = "button"; if (title) b.title = title;
+    b.onclick = () => { S.ui.filter = S.ui.filter === key && key !== "all" ? "all" : key; save(); renderSide(); };
+    box.append(b);
+  };
+  chip("All", "all");
+  if (S.recipes.some(r => r.fav)) chip("★ Favorites", "fav");
+  allTags().forEach(t => chip(t.t, "tag:" + t.t.toLowerCase()));
+  const so = h("button", "chip", { recent: "Newest", name: "A to Z", rating: "Top rated", made: "Last made" }[S.prefs.sort] + " ▾");
+  so.type = "button"; so.title = "Sort";
+  so.style.marginLeft = "auto";
+  so.onclick = e => { const r = so.getBoundingClientRect(); tome.menu(r.left, r.bottom + 2, [["recent", "Newest first"], ["name", "A to Z"], ["rating", "Top rated"], ["made", "Last made"]].map(([k, l]) => ({ label: l, checked: S.prefs.sort === k, toggle: () => { S.prefs.sort = k; save(); tome.closeMenu(); renderSide(); } }))); e.stopPropagation(); };
+  box.append(so);
+}
+function thumb(r) {
+  const t = h("span", "thumb");
+  if (r.photo) t.style.backgroundImage = "url(" + JSON.stringify(r.photo) + ")";
+  else t.textContent = (r.title.trim()[0] || "?").toUpperCase();
+  return t;
+}
+function renderSide() {
+  renderFilters();
+  const list = $("list"), vis = visible();
+  list.replaceChildren();
+  if (!S.recipes.length) { list.append(h("div", "rb-empty", "No recipes yet.")); }
+  else if (!vis.length) { list.append(h("div", "rb-empty", "Nothing matches.")); }
+  vis.forEach(({ r, hit }) => {
+    const b = h("button", "rc" + (S.ui.view !== "grocery" && S.ui.sel === r.id ? " rb-sel" : ""));
+    b.type = "button"; b.dataset.id = r.id;
+    const tx = h("span", "rc-tx");
+    tx.append(h("b", null, r.title || "Untitled"));
+    const bits = [];
+    const a = avgStars(r);
+    if (a) bits.push("★ " + (Math.round(a * 10) / 10));
+    if (r.time) bits.push(r.time);
+    const lm = lastMade(r);
+    if (lm) bits.push("Made " + dayText(lm));
+    if (bits.length) tx.append(h("small", null, bits.join(" · ")));
+    if (hit.via) tx.append(h("small", "match", "Has " + hit.via));
+    b.append(thumb(r), tx);
+    if (r.fav) b.append(h("span", "rc-fav", "★"));
+    b.onclick = () => openRecipe(r.id);
+    b.oncontextmenu = e => tome.menu(e, recipeMenu(r));
+    list.append(b);
+  });
+  const gb = $("gro"), n = groceryCount();
+  gb.replaceChildren(document.createRange().createContextualFragment(ICON.cart), document.createTextNode("Grocery list"));
+  gb.querySelector("svg").style.cssText = "width:18px;height:18px";
+  if (n) gb.append(h("span", "n", String(n)));
+  gb.classList.toggle("on", S.ui.view === "grocery");
+}
+function recipeMenu(r) {
+  const inList = S.grocery.items.some(x => x.rid === r.id);
+  return [
+    { label: "Open", action: () => openRecipe(r.id) },
+    { label: "Cook", disabled: !r.steps.length, action: () => startCook(r.id) },
+    { label: "Edit", action: () => editRecipe(r.id) },
+    "-",
+    { label: r.fav ? "Remove from favorites" : "Add to favorites", action: () => { r.fav = !r.fav; save(); render(); } },
+    { label: inList ? "Update in grocery list" : "Add to grocery list", action: () => addToGrocery(r) },
+    { label: "Copy as text", action: () => { tome.copy(recipeText(r)); tome.toast("Recipe copied as text"); } },
+    { label: "Duplicate", action: () => duplicate(r) },
+    "-",
+    { label: "Delete recipe", danger: true, confirm: true, action: () => deleteRecipe(r) },
+  ];
+}
+function duplicate(r) {
+  const c = cleanRecipe(JSON.parse(JSON.stringify(r)));
+  c.id = uid(); c.title = r.title + " (copy)"; c.log = []; c.created = c.updated = Date.now();
+  S.recipes.push(c); save(); openRecipe(c.id);
+  tome.toast("Copy made");
+}
+function deleteRecipe(r) {
+  const snap = JSON.stringify(S);
+  S.recipes = S.recipes.filter(x => x.id !== r.id);
+  S.grocery.items = S.grocery.items.filter(x => x.rid !== r.id);
+  delete S.ui.scale[r.id];
+  if (S.ui.sel === r.id) S.ui.sel = (visible()[0] || {}).r ? visible()[0].r.id : null;
+  save(); render();
+  tome.toast("Deleted " + (r.title || "recipe"), { undo: () => { S = clean(JSON.parse(snap)); save(); render(); } });
+}
+
+/* ---------- rendering: main ---------- */
+function render() {
+  renderSide();
+  const main = $("main");
+  if (S.ui.view === "edit" && S.draft) { if (!main.querySelector(".ed")) renderEditor(); return; }
+  main.replaceChildren();
+  if (S.ui.view === "grocery") return renderGrocery(main);
+  let r = byId(S.ui.sel);
+  if (!r && S.recipes.length) { r = (visible()[0] || { r: S.recipes[0] }).r; S.ui.sel = r.id; }
+  if (!r) return renderWelcome(main);
+  renderRecipe(main, r);
+}
+function renderWelcome(main) {
+  const p = h("div", "pane"), w = h("div", "welcome");
+  w.append(h("h1", null, "Your recipe book"),
+    h("p", null, "Add a recipe by typing it in, or copy one from any website or document and press Ctrl+V here: it gets split into title, ingredients and steps for you."));
+  const row = h("div", "tome-row");
+  const a = h("button", "primary", "New recipe"); a.type = "button"; a.onclick = () => newRecipe();
+  const b = h("button", "quiet", "Add a sample recipe"); b.type = "button"; b.onclick = addSample;
+  row.append(a, b);
+  w.append(row, h("p", null, "Then scale it from any ingredient, cook it step by step with timers, and send it to your grocery list."));
+  p.append(w); main.append(p);
+}
+function openRecipe(id) { S.ui.sel = id; S.ui.view = "recipe"; save(); render(); const p = $("main").querySelector(".pane"); if (p) p.scrollTop = 0; }
+
+function renderRecipe(main, r) {
+  const f = factorOf(r);
+  const pane = h("div", "pane");
+  /* head */
+  const head = h("div", "rv-head");
+  const ph = h("div", "rv-photo" + (r.photo ? "" : " rb-none"));
+  if (r.photo) { ph.style.backgroundImage = "url(" + JSON.stringify(r.photo) + ")"; ph.title = "Click to enlarge"; ph.onclick = () => lightbox(r.photo); }
+  const tt = h("div", "rv-title");
+  const t1 = h("h1", null, r.title || "Untitled");
+  t1.ondblclick = () => editRecipe(r.id, "title");
+  const meta = h("div", "rb-meta");
+  if (r.servings) meta.append(h("span", null, "Serves " + nice(r.servings)));
+  if (r.time) meta.append(h("span", null, r.time));
+  const a = avgStars(r);
+  if (a) { const s = h("span", "stars", "★".repeat(Math.round(a)) + "☆".repeat(5 - Math.round(a))); s.title = (Math.round(a * 10) / 10) + " from " + r.log.filter(x => x.stars).length + " ratings"; meta.append(s); }
+  const lm = lastMade(r);
+  if (lm) meta.append(h("span", null, "Last made " + dayText(lm)));
+  r.tags.forEach(t => { const c = h("span", "tome-chip", t); c.title = "Show recipes tagged " + t; c.onclick = () => { S.ui.filter = "tag:" + t.toLowerCase(); save(); renderSide(); }; meta.append(c); });
+  tt.append(t1, meta);
+  const acts = h("div", "rv-acts");
+  const cook = h("button", "primary", "Cook"); cook.type = "button"; cook.title = "Step by step, with timers (C)"; cook.disabled = !r.steps.length; cook.onclick = () => startCook(r.id);
+  const ib = (icon, title, fn, cls) => { const b = h("button", "icon-btn" + (cls ? " " + cls : "")); b.type = "button"; b.title = title; b.setAttribute("aria-label", title); b.innerHTML = icon; b.onclick = fn; return b; };
+  const inList = S.grocery.items.find(x => x.rid === r.id);
+  acts.append(cook,
+    ib(ICON.cart, inList ? "In the grocery list (click to update it to this amount)" : "Add to grocery list", () => addToGrocery(r), inList ? "fav-on" : ""),
+    ib(ICON.star, r.fav ? "Favorite (click to remove)" : "Add to favorites", () => { r.fav = !r.fav; save(); render(); }, r.fav ? "fav-on" : ""),
+    ib(ICON.edit, "Edit (E)", () => editRecipe(r.id)),
+    ib(ICON.more, "More", e => { const b = e.currentTarget.getBoundingClientRect(); tome.menu(b.right - 200, b.bottom + 2, recipeMenu(r)); e.stopPropagation(); }));
+  head.append(ph, tt, acts);
+  pane.append(head);
+
+  /* scale and unit tools */
+  const tools = h("div", "rb-tools");
+  const stp = h("span", "stepper");
+  const minus = h("button", null, "−"), plus = h("button", null, "+");
+  minus.type = plus.type = "button";
+  if (r.servings) {
+    const now = r.servings * f;
+    stp.append(h("span", "lbl", "Servings"), minus, h("b", null, nice(now)), plus);
+    minus.title = "Fewer servings"; plus.title = "More servings";
+    minus.onclick = () => setScale(r, Math.max(0.25, (Math.round(now) > 1 ? Math.round(now) - 1 : now / 2)) / r.servings);
+    plus.onclick = () => setScale(r, (Math.floor(now + 1e-9) + 1) / r.servings);
+  } else {
+    stp.append(h("span", "lbl", "Amount"), minus, h("b", null, xText(f)), plus);
+    const steps = [0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10];
+    minus.onclick = () => setScale(r, [...steps].reverse().find(s => s < f - 1e-9) || 0.25);
+    plus.onclick = () => setScale(r, steps.find(s => s > f + 1e-9) || f + 1);
+  }
+  const quick = h("span", "quick");
+  [[0.5, "½×"], [1, "1×"], [2, "2×"], [3, "3×"]].forEach(([v, l]) => {
+    const b = h("button", Math.abs(f - v) < 1e-9 ? "on" : "", l); b.type = "button"; b.onclick = () => setScale(r, v); quick.append(b);
+  });
+  tools.append(stp, quick);
+  if (Math.abs(f - 1) > 1e-9 && (S.ui["from:" + r.id] || ![0.5, 2, 3].includes(f))) {
+    const fr = h("span", "from", xText(f) + (S.ui["from:" + r.id] ? " from " + S.ui["from:" + r.id] : ""));
+    const x = h("button", null, "×"); x.type = "button"; x.title = "Back to the original amounts"; x.onclick = () => setScale(r, 1);
+    fr.append(x); tools.append(fr);
+  }
+  const rs = h("button", "sw grow" + (S.prefs.round ? " on" : ""));
+  rs.type = "button"; rs.title = "When scaled or converted, round to sizes you can measure (hover an amount for the exact one)";
+  rs.append(h("i"), document.createTextNode("Round to standard sizes"));
+  rs.onclick = () => { S.prefs.round = !S.prefs.round; save(); render(); };
+  const un = h("span", "quick");
+  [["us", "US"], ["metric", "Metric"]].forEach(([k, l]) => { const b = h("button", S.prefs.units === k ? "on" : "", l); b.type = "button"; b.title = k === "us" ? "Cups, spoons, ounces and pounds" : "Milliliters, liters, grams and kilograms"; b.onclick = () => { S.prefs.units = k; save(); render(); }; un.append(b); });
+  tools.append(rs, un);
+  pane.append(tools);
+
+  /* ingredients and steps */
+  const body = h("div", "rv-body");
+  const ic = h("section");
+  const ih = h("h2", null, "Ingredients");
+  const nGot = r.got.filter(id => r.ings.some(i => i.id === id)).length;
+  if (r.ings.length) { const s = h("span", "sub", nGot ? nGot + " ticked: right-click to clear" : "Click an amount to scale from it"); ih.append(s); }
+  ic.append(ih);
+  const ul = h("ul", "ings");
+  if (!r.ings.length) ul.append(h("p", "empty-note", "No ingredients yet."));
+  r.ings.forEach(ing => {
+    const p = parseIng(ing.text);
+    if (!p) return;
+    if (p.head) { ul.append(h("li", "ing-head", p.name)); return; }
+    const off = p.optional && r.off.includes(ing.id);
+    const li = h("li", "ing" + (off ? " off" : "") + (r.got.includes(ing.id) ? " got" : ""));
+    const cb = h("input"); cb.type = "checkbox"; cb.checked = r.got.includes(ing.id); cb.title = "Tick off (for shopping or getting things out)";
+    cb.onchange = () => { r.got = cb.checked ? [...r.got, ing.id] : r.got.filter(x => x !== ing.id); save(); li.classList.toggle("got", cb.checked); };
+    const am = amountOf(p, f);
+    const amt = h("button", "amt" + (am ? "" : " rb-none") + (am && am.exact ? " rounded" : ""), am ? am.text : "");
+    amt.type = "button";
+    if (am) { amt.title = (am.exact ? "Exact: " + am.exact + "\n" : "") + "Click to scale the recipe from this amount"; amt.onclick = () => scaleFrom(r, ing, p, amt); }
+    else amt.tabIndex = -1;
+    const nm = h("span", "nm");
+    nm.append(document.createTextNode(p.name));
+    if (p.size) nm.append(h("span", "size", " (" + p.size + ")"));
+    if (p.note) nm.append(h("span", "ing-note", ", " + p.note));
+    li.append(cb, amt, nm);
+    if (p.optional) {
+      const o = h("button", "opt" + (off ? "" : " on")); o.type = "button";
+      o.append(h("i"), document.createTextNode(off ? "Optional: left out" : "Optional: in"));
+      o.title = off ? "Left out of cook mode and the grocery list. Click to put it back." : "Click to leave it out of cook mode and the grocery list";
+      o.onclick = () => { r.off = off ? r.off.filter(x => x !== ing.id) : [...r.off, ing.id]; save(); render(); };
+      li.append(o);
+    } else li.append(h("span"));
+    li.oncontextmenu = e => tome.menu(e, [
+      ...(am ? [{ label: "Scale from this amount...", action: () => scaleFrom(r, ing, p, amt) }] : []),
+      ...(p.optional ? [{ label: off ? "Put it back in" : "Leave it out", action: () => o2(r, ing.id, off) }] : []),
+      { label: "Clear all ticks", disabled: !r.got.length, action: () => { r.got = []; save(); render(); } },
+      "-",
+      { label: "Edit ingredients", action: () => editRecipe(r.id, "ings") },
+    ]);
+    ul.append(li);
+  });
+  ic.oncontextmenu = e => { if (e.target.closest(".ing")) return; tome.menu(e, [{ label: "Clear all ticks", disabled: !r.got.length, action: () => { r.got = []; save(); render(); } }, { label: "Edit ingredients", action: () => editRecipe(r.id, "ings") }]); };
+  ic.append(ul);
+  const sc = h("section");
+  const sh = h("h2", null, "Steps");
+  if (r.steps.length) sh.append(h("span", "sub", "Times start a timer"));
+  sc.append(sh);
+  const ol = h("ol", "steps");
+  if (!r.steps.length) ol.append(h("p", "empty-note", "No steps yet."));
+  r.steps.forEach((st, i) => {
+    const li = h("li", "step");
+    const tx = h("div");
+    tx.innerHTML = stepHtml(r, st, f);
+    li.append(h("span", "num", String(i + 1)), tx);
+    li.oncontextmenu = e => tome.menu(e, stepMenu(r, i));
+    ol.append(li);
+  });
+  ol.addEventListener("click", e => { const b = e.target.closest(".tmr"); if (b) startTimer(r, b); });
+  sc.append(ol);
+  body.append(ic, sc);
+  pane.append(body);
+
+  /* notes and cook log */
+  const notes = h("div", "notes");
+  const nc = h("section");
+  nc.append(h("h2", null, "Notes"));
+  const pin = h("textarea", "pin");
+  pin.placeholder = "Notes for next time: swaps, what worked, where it's from...";
+  pin.value = r.note;
+  pin.oninput = () => { r.note = pin.value; save(); };
+  nc.append(pin);
+  const lc = h("section");
+  const lh = h("h2", null, "Cook log");
+  const made = h("button", "quiet", "I made this"); made.type = "button"; made.style.cssText = "margin-left:auto;padding:2px 10px;font-size:calc(13px * var(--t))";
+  made.title = "Add today to the log, with a rating and a note";
+  made.onclick = () => { const e = { id: uid(), date: todayStr(), stars: 0, note: "" }; r.log.unshift(e); save(); renderLog(r, lbox, e.id); renderSide(); };
+  lh.append(made);
+  lc.append(lh);
+  const lbox = h("div", "log");
+  lc.append(lbox);
+  renderLog(r, lbox, null);
+  notes.append(nc, lc);
+  pane.append(notes);
+  main.append(pane);
+}
+function o2(r, id, off) { r.off = off ? r.off.filter(x => x !== id) : [...r.off, id]; save(); render(); }
+function stepMenu(r, i) {
+  const st = r.steps[i], uses = stepUses(r)[i];
+  const ings = r.ings.map(ing => ({ ing, p: parseIng(ing.text) })).filter(x => x.p && !x.p.head);
+  return [
+    { label: "Ingredients for this step", items: [
+      ...ings.map(({ ing, p }) => ({ label: p.name, checked: uses.includes(ing.id), toggle: on => {
+        const cur = stepUses(r)[i];
+        st.use = on ? [...new Set([...cur, ing.id])] : cur.filter(x => x !== ing.id);
+        save(); render(); if (cook) drawCook();
+      } })),
+      "-",
+      { label: "Pick them automatically", disabled: !st.use, action: () => { st.use = null; save(); render(); if (cook) drawCook(); } },
+    ] },
+    { label: "Cook from this step", action: () => startCook(r.id, i) },
+    "-",
+    { label: "Edit steps", action: () => editRecipe(r.id, "steps") },
+  ];
+}
+function renderLog(r, box, editId) {
+  box.replaceChildren();
+  if (!r.log.length) { box.append(h("p", "empty-note", "Click I made this each time you cook it, to keep a rating and a note.")); return; }
+  [...r.log].sort((a, b) => b.date.localeCompare(a.date)).forEach(e => {
+    const row = h("div", "log-e" + (e.id === editId ? " editing" : ""));
+    const rate = stars(e.stars, v => { e.stars = v; save(); renderSide(); if (e.id === editId) renderLog(r, box, e.id); else refreshMeta(r); });
+    if (e.id === editId) {
+      const d = h("input"); d.type = "date"; d.value = e.date; d.onchange = () => { if (d.value) { e.date = d.value; save(); renderSide(); } };
+      const n = h("input"); n.type = "text"; n.placeholder = "How did it go? Press Enter to save"; n.value = e.note; n.maxLength = 400;
+      n.oninput = () => { e.note = n.value; save(); };
+      n.onkeydown = ev => { if (ev.key === "Enter" || ev.key === "Escape") { ev.preventDefault(); renderLog(r, box, null); } };
+      row.append(d, rate, n);
+      box.append(row);
+      setTimeout(() => n.focus(), 0);
+      return;
+    }
+    row.append(h("span", "d", dayText(e.date)), rate, h("span", "t", e.note));
+    row.ondblclick = () => renderLog(r, box, e.id);
+    row.oncontextmenu = ev => tome.menu(ev, [
+      { label: "Edit", action: () => renderLog(r, box, e.id) },
+      { label: "Delete entry", danger: true, action: () => {
+        const at = r.log.indexOf(e); r.log.splice(at, 1); save(); renderLog(r, box, null); renderSide();
+        tome.toast("Entry deleted", { undo: () => { r.log.splice(at, 0, e); save(); renderLog(r, box, null); renderSide(); } });
+      } },
+    ]);
+    box.append(row);
+  });
+}
+function refreshMeta(r) { const p = $("main").querySelector(".pane"), top = p ? p.scrollTop : 0; render(); const q = $("main").querySelector(".pane"); if (q) q.scrollTop = top; }
+function stars(v, onSet, ro) {
+  const box = h("span", "rate" + (ro ? " ro" : ""));
+  for (let i = 1; i <= 5; i++) {
+    const b = h("button", i <= v ? "on" : "", "★"); b.type = "button"; b.title = ro ? "" : i + " star" + (i > 1 ? "s" : "") + (i === v ? " (click again to clear)" : "");
+    if (!ro) b.onclick = e => { e.stopPropagation(); onSet(i === v ? 0 : i); };
+    box.append(b);
+  }
+  return box;
+}
+function setScale(r, f, from) {
+  f = Math.round(f * 10000) / 10000;
+  if (Math.abs(f - 1) < 1e-9) { delete S.ui.scale[r.id]; delete S.ui["from:" + r.id]; }
+  else { S.ui.scale[r.id] = f; if (from) S.ui["from:" + r.id] = from; else delete S.ui["from:" + r.id]; }
+  const p = $("main").querySelector(".pane"), top = p ? p.scrollTop : 0;
+  save(); render();
+  const q = $("main").querySelector(".pane"); if (q) q.scrollTop = top;
+}
+/* Click an amount, type what you have ("3", "1.5 lb", "2 1/2 cups"), Enter: the whole recipe scales from it. */
+function scaleFrom(r, ing, p, btn) {
+  const am = amountOf(p, factorOf(r));
+  if (!am) return;
+  const inp = h("input", "amt-in"); inp.type = "text"; inp.value = am.text === "a pinch" ? "" : am.text; inp.title = "Type the amount you have, then Enter";
+  btn.replaceWith(inp); inp.focus(); inp.select();
+  let done = false;
+  const fin = ok => {
+    if (done) return; done = true;
+    if (!ok) { render(); return; }
+    const t = parseIng(inp.value.trim() + " x");
+    if (!t || t.qty == null || !(t.qty > 0)) { render(); if (inp.value.trim()) tome.toast("Type an amount, like 3 or 1.5 lb"); return; }
+    const pu = p.unit ? U[p.unit] : null;
+    let nf = null;
+    const prim = am.parts[0] || [null, null], pk = prim[1];
+    if (t.unit && pu && U[t.unit] && U[t.unit].dim === pu.dim && pu.dim !== "count") nf = (t.qty * U[t.unit].b) / (p.qty * pu.b);
+    else if (!t.unit && pk && U[pk] && pu && U[pk].dim === pu.dim && pu.dim !== "count") nf = (t.qty * U[pk].b) / (p.qty * pu.b);
+    else if (!t.unit || t.unit === p.unit) nf = t.qty / p.qty;
+    if (!nf || !isFinite(nf) || nf <= 0) { render(); tome.toast("That unit doesn't match " + p.name); return; }
+    setScale(r, nf, p.name);
+  };
+  inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); fin(true); } else if (e.key === "Escape") { e.preventDefault(); fin(false); } };
+  inp.onblur = () => fin(true);
+}
+
+/* ---------- editor ---------- */
+function draftFrom(r) {
+  return { rid: r ? r.id : null, title: r ? r.title : "", servings: r && r.servings ? String(r.servings) : "", time: r ? r.time : "", tags: r ? r.tags.join(", ") : "",
+    ings: r ? r.ings.map(i => i.text).join("\n") : "", steps: r ? r.steps.map(s => s.text).join("\n") : "", photo: r ? r.photo : "", note: "", at: Date.now() };
+}
+const draftKey = d => JSON.stringify([d.title, d.servings, d.time, d.tags, d.ings, d.steps, d.photo, d.note]);
+let edBase = "";
+function newRecipe(prefill) {
+  if (S.ui.view === "edit" && S.draft) { flashEditor(); return; }
+  S.draft = draftFrom(null);
+  edBase = draftKey(S.draft);
+  if (prefill) Object.assign(S.draft, prefill);
+  S.ui.view = "edit"; save(); renderEditor(prefill ? null : "title");
+  if (prefill) tome.toast("Recipe split into title, ingredients and steps. Check it, then Save.");
+}
+function editRecipe(id, focus) {
+  const r = byId(id);
+  if (!r) return;
+  if (S.ui.view === "edit" && S.draft) { flashEditor(); return; }
+  S.draft = draftFrom(r);
+  edBase = draftKey(S.draft);
+  S.ui.view = "edit"; save(); renderEditor(focus || "title");
+}
+function flashEditor() { const t = $("main").querySelector(".ed-title"); if (t) t.focus(); tome.toast("Save or cancel the recipe you're editing first"); }
+function knownIngs() {
+  const n = new Map();
+  S.recipes.forEach(r => r.ings.forEach(i => { const p = parseIng(i.text); if (p && !p.head && p.name.length > 1) { const k = p.name.toLowerCase(); const e = n.get(k) || { t: p.name, c: 0 }; e.c++; n.set(k, e); } }));
+  return [...n.values()].sort((a, b) => b.c - a.c);
+}
+function renderEditor(focus) {
+  const d = S.draft, main = $("main");
+  main.replaceChildren();
+  const pane = h("div", "pane");
+  const ed = h("div", "ed");
+  const top = h("div", "ed-top");
+  const left = h("div");
+  const title = h("input", "ed-title"); title.type = "text"; title.placeholder = "Recipe name"; title.value = d.title; title.maxLength = 120; title.setAttribute("aria-label", "Recipe name");
+  const metaRow = h("div", "ed-meta");
+  const lab = (text, input) => { const l = h("label", null, text); l.append(input); return l; };
+  const srv = h("input", "srv"); srv.type = "text"; srv.inputMode = "decimal"; srv.placeholder = "4"; srv.value = d.servings;
+  const tim = h("input", "tim"); tim.type = "text"; tim.placeholder = "45 min"; tim.value = d.time; tim.maxLength = 40;
+  const tgs = h("input", "tgs"); tgs.type = "text"; tgs.placeholder = "dinner, chicken"; tgs.value = d.tags; tgs.maxLength = 200;
+  metaRow.append(lab("Serves", srv), lab("Time", tim), lab("Tags", tgs));
+  const tagSugg = h("div", "sugg");
+  left.append(title, metaRow, tagSugg);
+  const slot = h("div", "ph-slot"); slot.title = "Click to choose a photo, or paste or drop one anywhere here";
+  const drawSlot = () => { slot.classList.toggle("has", !!d.photo); slot.style.backgroundImage = d.photo ? "url(" + JSON.stringify(d.photo) + ")" : ""; slot.textContent = d.photo ? "" : "Add a photo: click, paste or drop"; };
+  drawSlot();
+  slot.onclick = () => $("file").click();
+  slot.oncontextmenu = e => tome.menu(e, [{ label: "Choose a photo...", action: () => $("file").click() }, { label: "Remove photo", disabled: !d.photo, action: () => { d.photo = ""; save(); drawSlot(); } }]);
+  top.append(left, slot);
+  const cols = h("div", "ed-cols");
+  const c1 = h("div", "ed-col"), c2 = h("div", "ed-col");
+  const h1 = h("h2"); h1.append(document.createTextNode("Ingredients"), h("small", null, "one per line · start with ? if optional"));
+  const ings = h("textarea"); ings.placeholder = "2 cups flour\n1 tsp salt\n3 eggs, beaten\n? 1/2 cup walnuts\n\nFor the glaze:\n1 cup powdered sugar"; ings.value = d.ings; ings.spellcheck = false; ings.setAttribute("aria-label", "Ingredients");
+  const sugg = h("div", "sugg");
+  const pv = h("div", "pv");
+  c1.append(h1, ings, sugg, pv);
+  const h2 = h("h2"); h2.append(document.createTextNode("Steps"), h("small", null, "one per line · times like 25 minutes become timers"));
+  const steps = h("textarea"); steps.placeholder = "Whisk the flour and salt.\nAdd the eggs and stir until smooth.\nBake 25 minutes."; steps.value = d.steps; steps.setAttribute("aria-label", "Steps");
+  c2.append(h2, steps);
+  cols.append(c1, c2);
+  const foot = h("div", "ed-foot");
+  const hint = h("span", "ed-hint", "Tip: paste a whole recipe into any box and it fills everything in.");
+  const cancel = h("button", "quiet", "Cancel"); cancel.type = "button"; cancel.title = "Esc";
+  const ok = h("button", "primary", "Save"); ok.type = "submit"; ok.title = "Ctrl+Enter";
+  foot.append(hint, cancel, ok);
+  ed.append(top, cols, foot);
+  pane.append(ed);
+  main.append(pane);
+  pane.style.overflow = "hidden";
+
+  const bind = (el, key) => el.addEventListener("input", () => { d[key] = el.value; save(); });
+  bind(title, "title"); bind(srv, "servings"); bind(tim, "time"); bind(tgs, "tags"); bind(ings, "ings"); bind(steps, "steps");
+  /* live check of each ingredient line */
+  const drawPv = () => {
+    pv.replaceChildren();
+    const lines = ings.value.split("\n").filter(l => l.trim());
+    pv.hidden = !lines.length;
+    lines.forEach(l => {
+      const p = parseIng(l);
+      if (!p) return;
+      if (p.head) { pv.append(h("div", "pv-r h", p.name)); return; }
+      const row = h("div", "pv-r");
+      const q = p.qty != null ? (p.qty2 != null ? nice(p.qty) + "-" + nice(p.qty2) : nice(p.qty)) : "";
+      row.append(p.qty != null ? h("span", "q", q) : h("span", "no", "no amount"), h("span", "u", p.unit ? label(p.unit, p.qty2 || p.qty || 1) : ""));
+      const x = h("span", "x"); x.append(document.createTextNode(p.name || "(name?)"));
+      if (p.size) x.append(h("i", null, " (" + p.size + ")"));
+      if (p.note) x.append(h("i", null, ", " + p.note));
+      if (p.optional) x.append(h("span", "o", "optional"));
+      row.append(x);
+      pv.append(row);
+    });
+  };
+  /* name suggestions from your other recipes for the line being typed */
+  const known = knownIngs();
+  let cur = [];
+  const lineAt = () => { const v = ings.value, c = ings.selectionStart, a = v.lastIndexOf("\n", c - 1) + 1, b = v.indexOf("\n", c); return { a, b: b < 0 ? v.length : b, c }; };
+  const drawSugg = () => {
+    sugg.replaceChildren(); cur = [];
+    if (document.activeElement !== ings) return;
+    const { a, b, c } = lineAt();
+    if (c !== b) return;
+    const p = parseIng(ings.value.slice(a, b));
+    const frag = p && !p.head ? p.name.toLowerCase() : "";
+    if (frag.length < 2 || p.note) return;
+    cur = known.filter(k => k.t.toLowerCase() !== frag && (k.t.toLowerCase().startsWith(frag) || k.t.toLowerCase().includes(" " + frag))).slice(0, 5).map(k => k.t);
+    cur.forEach((t, i) => { const bt = h("button", null, t); bt.type = "button"; bt.onmousedown = e => { e.preventDefault(); accept(t); }; sugg.append(bt); if (!i) sugg.append(); });
+    if (cur.length) sugg.append(h("small", null, "Tab picks the first"));
+  };
+  const accept = t => {
+    const { a, b } = lineAt(), line = ings.value.slice(a, b), p = parseIng(line);
+    const at = line.toLowerCase().lastIndexOf(p.name.toLowerCase());
+    const nl = at >= 0 ? line.slice(0, at) + t + line.slice(at + p.name.length) : line + t;
+    ings.value = ings.value.slice(0, a) + nl + ings.value.slice(b);
+    const pos = a + nl.length; ings.setSelectionRange(pos, pos);
+    d.ings = ings.value; save(); drawPv(); drawSugg();
+  };
+  ings.addEventListener("input", () => { drawPv(); drawSugg(); });
+  ings.addEventListener("click", drawSugg);
+  ings.addEventListener("keyup", e => { if (/Arrow|Home|End/.test(e.key)) drawSugg(); });
+  ings.addEventListener("blur", () => setTimeout(drawSugg, 0));
+  ings.addEventListener("keydown", e => { if (e.key === "Tab" && !e.shiftKey && cur.length) { e.preventDefault(); accept(cur[0]); } });
+  /* tag suggestions for the last tag typed */
+  const tagsKnown = allTags().map(t => t.t);
+  let tcur = [];
+  const drawTags = () => {
+    tagSugg.replaceChildren(); tcur = [];
+    if (document.activeElement !== tgs) return;
+    const parts = tgs.value.split(","), lastT = parts[parts.length - 1].trim().toLowerCase(), have = parts.slice(0, -1).map(s => s.trim().toLowerCase());
+    tcur = tagsKnown.filter(t => !have.includes(t.toLowerCase()) && (!lastT || t.toLowerCase().startsWith(lastT)) && t.toLowerCase() !== lastT).slice(0, 6);
+    tcur.forEach(t => { const bt = h("button", null, t); bt.type = "button"; bt.onmousedown = e => { e.preventDefault(); takeTag(t); }; tagSugg.append(bt); });
+    if (tcur.length) tagSugg.append(h("small", null, "Tab picks the first"));
+  };
+  const takeTag = t => { const parts = tgs.value.split(","); parts[parts.length - 1] = (parts.length > 1 ? " " : "") + t; tgs.value = parts.join(",") + ", "; d.tags = tgs.value; save(); drawTags(); };
+  tgs.addEventListener("input", drawTags); tgs.addEventListener("focus", drawTags); tgs.addEventListener("blur", () => setTimeout(drawTags, 0));
+  tgs.addEventListener("keydown", e => { if (e.key === "Tab" && !e.shiftKey && tcur.length && tgs.value.trim() && !/,\s*$/.test(tgs.value)) { e.preventDefault(); takeTag(tcur[0]); } });
+
+  /* paste a whole recipe, or a photo */
+  ed.addEventListener("paste", e => {
+    const cd = e.clipboardData;
+    const img = [...(cd.files || [])].find(f => f.type.startsWith("image/"));
+    if (img) { e.preventDefault(); takePhoto(img, drawSlot); return; }
+    const text = cd.getData("text/plain");
+    if (!looksLikeRecipe(text)) return;
+    e.preventDefault();
+    const before = { ...d };
+    fillFrom(d, parseRecipeText(text));
+    save(); renderEditor(null);
+    tome.toast("Recipe split into title, ingredients and steps. Check it, then Save.", { undo: () => { Object.assign(S.draft, before); save(); renderEditor(null); } });
+  });
+  ed.addEventListener("dragover", e => { if ([...e.dataTransfer.items].some(i => i.type.startsWith("image/"))) { e.preventDefault(); ed.classList.add("drop"); } });
+  ed.addEventListener("dragleave", e => { if (!ed.contains(e.relatedTarget)) ed.classList.remove("drop"); });
+  ed.addEventListener("drop", e => { const f = [...e.dataTransfer.files].find(x => x.type.startsWith("image/")); ed.classList.remove("drop"); if (f) { e.preventDefault(); takePhoto(f, drawSlot); } });
+  $("file").onchange = () => { const f = $("file").files[0]; $("file").value = ""; if (f) takePhoto(f, drawSlot); };
+  cancel.onclick = cancelEdit;
+  ok.onclick = commitEdit;
+  drawPv();
+  const fe = { title, ings, steps }[focus];
+  if (fe) setTimeout(() => { fe.focus(); if (fe.tagName === "TEXTAREA") fe.setSelectionRange(fe.value.length, fe.value.length); }, 0);
+}
+function fillFrom(d, p) {
+  if (p.title) d.title = p.title;
+  if (p.servings) d.servings = String(p.servings);
+  if (p.time) d.time = p.time;
+  if (p.tags.length) d.tags = [...new Set([...d.tags.split(",").map(s => s.trim()).filter(Boolean), ...p.tags])].join(", ");
+  if (p.ings.length) d.ings = p.ings.join("\n");
+  if (p.steps.length) d.steps = p.steps.join("\n");
+  if (p.note) d.note = p.note;
+}
+function cancelEdit() {
+  const d = S.draft;
+  if (!d) return;
+  const changed = draftKey(d) !== edBase;
+  S.draft = null; S.ui.view = "recipe"; save(); render();
+  if (changed) tome.toast(d.rid ? "Changes not saved" : "Recipe not saved", { undo: () => { S.draft = d; S.ui.view = "edit"; save(); renderEditor("title"); } });
+}
+/* Lines to items, keeping ids for lines that didn't change (so ticks, switches and step picks stay put). */
+function linesTo(text, old, isStep) {
+  const lines = text.split("\n").map(l => l.trim()).filter(Boolean), used = new Set();
+  const out = lines.map((t, i) => {
+    let o = old.find(x => !used.has(x.id) && x.text === t);
+    if (!o && isStep && old[i] && !used.has(old[i].id) && !lines.includes(old[i].text)) o = old[i];
+    if (o) used.add(o.id);
+    return isStep ? { id: o ? o.id : uid(), text: t, use: o && o.text === t ? o.use : null } : { id: o ? o.id : uid(), text: t };
+  });
+  return out;
+}
+function commitEdit() {
+  const d = S.draft;
+  if (!d) return;
+  if (!d.title.trim()) { const t = $("main").querySelector(".ed-title"); if (t) t.focus(); tome.toast("Give it a name first"); return; }
+  let r = d.rid ? byId(d.rid) : null;
+  const isNew = !r;
+  if (!r) { r = cleanRecipe({ id: uid(), created: Date.now() }); S.recipes.push(r); }
+  r.title = d.title.trim();
+  const sv = numVal(String(d.servings).trim() || "0");
+  r.servings = sv > 0 ? sv : null;
+  r.time = d.time.trim();
+  r.tags = [...new Set(d.tags.split(",").map(s => s.trim()).filter(Boolean))];
+  r.ings = linesTo(d.ings, r.ings, false);
+  r.steps = linesTo(d.steps, r.steps, true);
+  r.photo = d.photo || "";
+  if (d.note) r.note = (r.note ? r.note + "\n\n" : "") + d.note;
+  r.off = r.off.filter(id => r.ings.some(i => i.id === id));
+  r.got = r.got.filter(id => r.ings.some(i => i.id === id));
+  r.updated = Date.now();
+  S.draft = null; S.ui.view = "recipe"; S.ui.sel = r.id;
+  if (!isNew && !r.servings) delete S.ui.scale[r.id];
+  save(); render();
+  tome.toast(isNew ? "Recipe saved" : "Changes saved");
+}
+/* Photos are shrunk to about 100 KB so many fit in the add-on's storage. */
+function takePhoto(file, after) {
+  if (sizeMB() > 4.6) { tome.toast("Storage is nearly full: remove some photos first"); return; }
+  const rd = new FileReader();
+  rd.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const max = 560, k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+      const g = c.getContext("2d");
+      g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height);
+      g.drawImage(img, 0, 0, c.width, c.height);
+      let q = 0.78, url = c.toDataURL("image/jpeg", q);
+      while (url.length > 130000 && q > 0.35) { q -= 0.1; url = c.toDataURL("image/jpeg", q); }
+      if (!S.draft) return;
+      S.draft.photo = url; save(); after();
+    };
+    img.onerror = () => tome.toast("That picture can't be read");
+    img.src = rd.result;
+  };
+  rd.readAsDataURL(file);
+}
+function lightbox(src) {
+  const o = h("div", "lightbox"), i = h("img"); i.src = src; i.alt = "";
+  o.append(i); o.onclick = () => o.remove(); document.body.append(o);
+}
+
+/* ---------- grocery list ---------- */
+function groceryRows() {
+  const map = new Map(), rows = [];
+  S.grocery.items.forEach(it => {
+    const r = byId(it.rid);
+    if (!r) return;
+    r.ings.forEach(ing => {
+      if (r.off.includes(ing.id)) return;
+      const p = parseIng(ing.text);
+      if (!p || p.head || !p.name) return;
+      const u = p.unit ? U[p.unit] : null;
+      const dim = u ? (u.dim === "count" ? "c:" + p.unit : u.dim) : (p.qty != null ? "n" : "x");
+      const key = normName(p.name) + "|" + dim;
+      let row = map.get(key);
+      if (!row) { row = { key, name: p.name, dim, unit: p.unit, base: 0, has: false, src: [] }; map.set(key, row); rows.push(row); }
+      const q = p.qty != null ? (p.qty2 != null ? p.qty2 : p.qty) * it.factor : null;
+      if (q != null) { row.base += u && u.dim !== "count" ? q * u.b : q; row.has = true; }
+      const a = amountOf(p, it.factor);
+      row.src.push(r.title + (a ? ": " + a.text : ""));
+    });
+  });
+  return rows;
+}
+function rowAmount(row) {
+  if (!row.has) return "";
+  const sys = S.prefs.units, round = S.prefs.round;
+  if (row.dim === "vol" || row.dim === "wt") return fmtParts(round ? roundBase(row.base, row.dim, sys) : exactBase(row.base, row.dim, sys, row.unit));
+  const k = row.dim.startsWith("c:") ? row.dim.slice(2) : null;
+  const q = round ? roundCount(row.base, k) : row.base;
+  return nice(q) + (k ? " " + label(k, q) : "");
+}
+function groceryCount() {
+  const rows = groceryRows();
+  return rows.filter(r => !S.grocery.done[r.key]).length + S.grocery.extra.filter(x => !x.done).length;
+}
+function addToGrocery(r) {
+  const f = factorOf(r), it = S.grocery.items.find(x => x.rid === r.id);
+  if (it) it.factor = f; else S.grocery.items.push({ rid: r.id, factor: f });
+  save(); render();
+  tome.toast((it ? "Updated " + (r.title || "recipe") + " in" : "Added " + (r.title || "recipe") + " to") + " the grocery list" + (Math.abs(f - 1) > 1e-9 ? " (" + xText(f) + ")" : ""));
+}
+function openGrocery() { if (S.ui.view === "edit" && S.draft) { flashEditor(); return; } S.ui.view = S.ui.view === "grocery" ? "recipe" : "grocery"; save(); render(); }
+function renderGrocery(main) {
+  const pane = h("div", "pane"), gv = h("div", "gv");
+  const rows = groceryRows(), g = S.grocery;
+  const left = rows.filter(r => !g.done[r.key]).length + g.extra.filter(x => !x.done).length;
+  const total = rows.length + g.extra.length;
+  const head = h("div", "gv-head");
+  head.append(h("h1", null, "Grocery list"), h("span", "sub", total ? left + " of " + total + " left" : ""));
+  const copy = h("button", "quiet", "Copy"); copy.type = "button"; copy.title = "Copy what's left as text";
+  copy.disabled = !left;
+  copy.onclick = () => {
+    const lines = rows.filter(r => !g.done[r.key]).map(r => "- " + (rowAmount(r) ? rowAmount(r) + " " : "") + r.name).concat(g.extra.filter(x => !x.done).map(x => "- " + x.text));
+    tome.copy(lines.join("\n")); tome.toast("Grocery list copied");
+  };
+  const clr = h("button", "quiet", "Clear ticked"); clr.type = "button"; clr.title = "Remove ticked items you added yourself and untick the rest";
+  clr.disabled = !(rows.some(r => g.done[r.key]) || g.extra.some(x => x.done));
+  clr.onclick = () => { const snap = JSON.stringify(g); g.extra = g.extra.filter(x => !x.done); g.done = {}; save(); render(); tome.toast("Ticks cleared", { undo: () => { S.grocery = JSON.parse(snap); save(); render(); } }); };
+  const more = h("button", "icon-btn"); more.type = "button"; more.title = "More"; more.innerHTML = ICON.more;
+  more.onclick = e => { const b = more.getBoundingClientRect(); tome.menu(b.right - 200, b.bottom + 2, [
+    { label: "Download as a text file", disabled: !total, action: () => tome.download("grocery-list.txt", rows.map(r => (g.done[r.key] ? "[x] " : "[ ] ") + (rowAmount(r) ? rowAmount(r) + " " : "") + r.name).concat(g.extra.map(x => (x.done ? "[x] " : "[ ] ") + x.text)).join("\n"), "text/plain") },
+    "-",
+    { label: "Empty the list", danger: true, disabled: !total, confirm: true, action: () => { const snap = JSON.stringify(g); S.grocery = { items: [], extra: [], done: {} }; save(); render(); tome.toast("List emptied", { undo: () => { S.grocery = JSON.parse(snap); save(); render(); } }); } },
+  ]); e.stopPropagation(); };
+  head.append(copy, clr, more);
+  gv.append(head);
+  if (g.items.length) {
+    const recs = h("div", "gv-recs");
+    g.items.forEach(it => {
+      const r = byId(it.rid); if (!r) return;
+      const c = h("span", "gv-rec");
+      c.append(h("b", null, r.title), h("span", null, r.servings ? "serves " + nice(r.servings * it.factor) : xText(it.factor)));
+      const x = h("button", null, "×"); x.type = "button"; x.title = "Take this recipe off the list";
+      x.onclick = () => removeFromList(it);
+      c.append(x);
+      c.oncontextmenu = e => tome.menu(e, [
+        { label: "Open recipe", action: () => openRecipe(r.id) },
+        { label: "Amount", items: [0.5, 1, 1.5, 2, 3, 4].map(v => ({ label: r.servings ? "Serves " + nice(r.servings * v) : xText(v), checked: Math.abs(it.factor - v) < 1e-9, toggle: () => { it.factor = v; save(); tome.closeMenu(); render(); } })) },
+        "-",
+        { label: "Take off the list", danger: true, action: () => removeFromList(it) },
+      ]);
+      recs.append(c);
+    });
+    gv.append(recs);
+  }
+  const add = h("form", "gv-add");
+  const inp = h("input"); inp.type = "text"; inp.placeholder = "Add an item, like paper towels"; inp.maxLength = 120; inp.setAttribute("aria-label", "Add an item");
+  const ab = h("button", "primary", "Add"); ab.type = "submit";
+  add.append(inp, ab);
+  add.onsubmit = e => { e.preventDefault(); const t = inp.value.trim(); if (!t) return; g.extra.push({ id: uid(), text: t, done: false }); save(); render(); const n = $("main").querySelector(".gv-add input"); if (n) n.focus(); };
+  gv.append(add);
+  if (!total) {
+    gv.append(h("p", "tome-empty", "Nothing here yet. Open a recipe and click the cart button to add its ingredients. Matching items from different recipes are added together."));
+  } else {
+    const ul = h("ul", "gl");
+    const item = (text, amt, src, done, toggle, menu) => {
+      const li = h("li", done ? "rb-done" : "");
+      const cb = h("input"); cb.type = "checkbox"; cb.checked = done; cb.onchange = toggle;
+      const t = h("span", "gt"); if (amt) t.append(h("b", null, amt)); t.append(document.createTextNode(text));
+      li.append(cb, t, h("span", "gs", src));
+      if (src) li.title = src;
+      li.onclick = e => { if (e.target !== cb) { cb.checked = !cb.checked; toggle(); } };
+      li.oncontextmenu = e => tome.menu(e, menu);
+      return li;
+    };
+    const all = [
+      ...rows.map(r => ({ done: !!g.done[r.key], el: () => item(r.name, rowAmount(r), r.src.join("; "), !!g.done[r.key], () => { if (g.done[r.key]) delete g.done[r.key]; else g.done[r.key] = true; save(); render(); },
+        [{ label: g.done[r.key] ? "Untick" : "Tick", action: () => { if (g.done[r.key]) delete g.done[r.key]; else g.done[r.key] = true; save(); render(); } }, { label: "From: " + r.src.join("; "), disabled: true }]) })),
+      ...g.extra.map(x => ({ done: x.done, el: () => item(x.text, "", "", x.done, () => { x.done = !x.done; save(); render(); },
+        [{ label: x.done ? "Untick" : "Tick", action: () => { x.done = !x.done; save(); render(); } }, "-", { label: "Remove", danger: true, action: () => { g.extra = g.extra.filter(y => y !== x); save(); render(); } }]) })),
+    ];
+    all.filter(x => !x.done).forEach(x => ul.append(x.el()));
+    const dn = all.filter(x => x.done);
+    if (dn.length) { const s = h("li"); s.className = "sep"; s.style.display = "block"; s.textContent = "In the cart"; ul.append(s); dn.forEach(x => ul.append(x.el())); }
+    gv.append(ul);
+  }
+  pane.append(gv);
+  main.append(pane);
+}
+function removeFromList(it) {
+  const snap = JSON.stringify(S.grocery), r = byId(it.rid);
+  S.grocery.items = S.grocery.items.filter(x => x !== it); save(); render();
+  tome.toast("Took " + (r ? r.title : "it") + " off the list", { undo: () => { S.grocery = JSON.parse(snap); save(); render(); } });
+}
+
+/* ---------- cook mode ---------- */
+let cook = null;
+function startCook(id, at) {
+  const r = byId(id);
+  if (!r || !r.steps.length) return;
+  cook = { rid: id, i: clamp(at || 0, 0, r.steps.length - 1), done: false, stars: 0, note: "" };
+  $("cook").hidden = false;
+  drawCook();
+}
+function endCook() {
+  cook = null; $("cook").hidden = true; $("cook").replaceChildren();
+  render();
+}
+function drawCook() {
+  const r = cook && byId(cook.rid);
+  if (!r) { endCook(); return; }
+  const box = $("cook"), f = factorOf(r), n = r.steps.length, uses = stepUses(r);
+  box.replaceChildren();
+  const top = h("div", "cm-top");
+  top.append(h("b", null, r.title), h("span", "n", cook.done ? "Done" : "Step " + (cook.i + 1) + " of " + n + (Math.abs(f - 1) > 1e-9 ? " · " + (r.servings ? "serves " + nice(r.servings * f) : xText(f)) : "")));
+  const x = h("button", "quiet", "Close"); x.type = "button"; x.title = "Esc"; x.onclick = endCook;
+  top.append(x);
+  const body = h("div", "cm-body");
+  const mainEl = h("section", "cm-main");
+  if (cook.done) {
+    const dn = h("div", "cm-done");
+    dn.append(h("h2", null, "All done"), h("p", "sub", "How did it turn out? Rate it and add a note to the cook log."));
+    const rate = stars(cook.stars, v => { cook.stars = v; drawCook(); });
+    const note = h("input"); note.type = "text"; note.placeholder = "A note for next time (optional)"; note.value = cook.note; note.maxLength = 400;
+    note.oninput = () => { cook.note = note.value; };
+    const row = h("div", "tome-row");
+    const sv = h("button", "primary", "Save to cook log"); sv.type = "button";
+    const sk = h("button", "quiet", "Skip"); sk.type = "button";
+    sv.onclick = () => { r.log.unshift({ id: uid(), date: todayStr(), stars: cook.stars, note: cook.note.trim() }); save(); endCook(); tome.toast("Added to the cook log"); };
+    note.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); sv.click(); } };
+    sk.onclick = endCook;
+    row.append(sv, sk); row.style.justifyContent = "center";
+    dn.append(rate, note, row);
+    mainEl.append(dn);
+    setTimeout(() => note.focus(), 0);
+  } else {
+    const st = r.steps[cook.i];
+    mainEl.append(h("div", "cm-num", "Step " + (cook.i + 1)));
+    const tx = h("div", "cm-text"); tx.innerHTML = stepHtml(r, st, f);
+    tx.addEventListener("click", e => { const b = e.target.closest(".tmr"); if (b) startTimer(r, b); });
+    tx.oncontextmenu = e => tome.menu(e, stepMenu(r, cook.i).filter(it => !(it && it.label === "Cook from this step")));
+    mainEl.append(tx);
+    const use = h("div", "cm-use");
+    use.append(h("h3", null, "For this step"));
+    const ids = uses[cook.i].filter(id => !r.off.includes(id));
+    if (!ids.length) use.append(h("p", "rb-none", "Nothing new to add. Right-click the step to pick its ingredients."));
+    else {
+      const ul = h("ul");
+      ids.forEach(id => { const ing = r.ings.find(i => i.id === id), p = ing && parseIng(ing.text); if (!p) return; const li = h("li"); const a = amountOf(p, f); if (a) { const b = h("b", null, a.text); if (a.exact) b.title = "Exact: " + a.exact; li.append(b); } li.append(document.createTextNode(p.name + (p.note ? ", " + p.note : ""))); ul.append(li); });
+      use.append(ul);
+    }
+    use.oncontextmenu = e => tome.menu(e, stepMenu(r, cook.i).filter(it => !(it && it.label === "Cook from this step")));
+    mainEl.append(use);
+  }
+  const all = h("aside", "cm-all");
+  all.append(h("h3", null, "All ingredients"));
+  const ul = h("ul");
+  const nowIds = cook.done ? [] : uses[cook.i];
+  r.ings.forEach(ing => {
+    const p = parseIng(ing.text); if (!p) return;
+    if (p.head) { ul.append(h("li", "grp", p.name)); return; }
+    if (r.off.includes(ing.id)) return;
+    const li = h("li", (r.got.includes(ing.id) ? "got" : "") + (nowIds.includes(ing.id) ? " now" : ""));
+    li.append(h("span", "cm-box"), h("span", null, ingText(p, f)));
+    li.title = "Click to tick off";
+    li.onclick = () => { r.got = r.got.includes(ing.id) ? r.got.filter(x => x !== ing.id) : [...r.got, ing.id]; save(); drawCook(); };
+    ul.append(li);
+  });
+  all.append(ul);
+  body.append(mainEl, all);
+  const foot = h("div", "cm-foot");
+  const back = h("button", "quiet", "Back"); back.type = "button"; back.disabled = !cook.done && cook.i === 0; back.title = "Left arrow";
+  back.onclick = () => cookGo(-1);
+  const dots = h("div", "dots");
+  r.steps.forEach((s, i) => { const d = h("button", !cook.done && i === cook.i ? "on" : (cook.done || i < cook.i ? "past" : "")); d.type = "button"; d.title = "Step " + (i + 1); d.setAttribute("aria-label", "Step " + (i + 1)); d.onclick = () => { cook.done = false; cook.i = i; drawCook(); }; dots.append(d); });
+  const next = h("button", "primary", cook.done ? "Close" : cook.i === n - 1 ? "Finish" : "Next"); next.type = "button"; next.title = "Right arrow or Space";
+  next.onclick = () => (cook.done ? endCook() : cookGo(1));
+  foot.append(back, dots, next);
+  box.append(top, body, foot);
+}
+function cookGo(d) {
+  const r = byId(cook.rid);
+  if (!r) return;
+  if (cook.done) { if (d < 0) { cook.done = false; cook.i = r.steps.length - 1; drawCook(); } return; }
+  const i = cook.i + d;
+  if (i >= r.steps.length) { cook.done = true; drawCook(); return; }
+  cook.i = clamp(i, 0, r.steps.length - 1);
+  drawCook();
+}
+
+/* ---------- timers ---------- */
+let timers = [], tick = null, audio = null;
+function startTimer(r, btn) {
+  const secs = Number(btn.dataset.secs);
+  if (!secs) return;
+  const label = btn.dataset.label;
+  const same = timers.find(t => t.rid === r.id && t.label === label && !t.ring);
+  if (same) { tome.toast("That timer is already running"); return; }
+  timers.push({ id: uid(), rid: r.id, title: r.title, label, total: secs, end: Date.now() + secs * 1000, paused: null, ring: false, rang: 0 });
+  try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === "suspended") audio.resume(); } catch (e) { /* no sound here */ }
+  drawTimers();
+  if (!tick) tick = setInterval(tickTimers, 250);
+}
+const left = t => t.paused != null ? t.paused : Math.max(0, t.end - Date.now());
+const mmss = ms => { const s = Math.ceil(ms / 1000), hh = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), ss = s % 60; return (hh ? hh + ":" + String(m).padStart(2, "0") : m) + ":" + String(ss).padStart(2, "0"); };
+function beep() {
+  if (!audio) return;
+  try {
+    const t0 = audio.currentTime;
+    [0, 0.25, 0.5].forEach(o => { const os = audio.createOscillator(), g = audio.createGain(); os.frequency.value = 880; os.connect(g); g.connect(audio.destination); g.gain.setValueAtTime(0.0001, t0 + o); g.gain.exponentialRampToValueAtTime(0.25, t0 + o + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + o + 0.18); os.start(t0 + o); os.stop(t0 + o + 0.2); });
+  } catch (e) { /* ignore */ }
+}
+function tickTimers() {
+  const now = Date.now();
+  let rang = false;
+  timers.forEach(t => {
+    if (!t.ring && t.paused == null && t.end <= now) { t.ring = true; t.rang = now; t.beeps = 1; rang = true; beep(); tome.toast("Timer done: " + t.label + " (" + t.title + ")"); }
+    else if (t.ring && now - t.rang > 6000 && t.beeps < 6) { t.rang = now; t.beeps++; beep(); }
+  });
+  document.title = timers.some(t => t.ring) ? "Timer done - Recipes" : "Recipes";
+  timers.forEach(t => { const e = document.querySelector('.tm[data-id="' + t.id + '"] .left'); if (e) e.textContent = t.ring ? "Done" : mmss(left(t)); });
+  if (!timers.length) { clearInterval(tick); tick = null; }
+  if (rang) drawTimers();
+}
+function drawTimers() {
+  const box = $("timers");
+  box.replaceChildren();
+  timers.forEach(t => {
+    const e = h("div", "tm" + (t.ring ? " ring" : "") + (t.paused != null ? " paused" : ""));
+    e.dataset.id = t.id;
+    const lb = h("span", "lb"); lb.append(h("span", "left", t.ring ? "Done" : mmss(left(t))), h("small", null, t.label + " · " + t.title));
+    const pp = h("button"); pp.type = "button";
+    pp.innerHTML = t.paused != null ? ICON.play : ICON.pause; pp.title = t.paused != null ? "Resume" : "Pause";
+    pp.hidden = t.ring;
+    pp.onclick = () => { if (t.paused != null) { t.end = Date.now() + t.paused; t.paused = null; } else t.paused = left(t); drawTimers(); };
+    const x = h("button", null, "×"); x.type = "button"; x.title = t.ring ? "Stop" : "Cancel timer";
+    x.onclick = () => { timers = timers.filter(y => y !== t); drawTimers(); tickTimers(); };
+    e.append(lb, pp, x);
+    e.oncontextmenu = ev => tome.menu(ev, [
+      { label: "Add 1 minute", action: () => { if (t.ring) { t.ring = false; t.end = Date.now() + 60000; t.beeps = 0; } else if (t.paused != null) t.paused += 60000; else t.end += 60000; drawTimers(); } },
+      { label: "Add 5 minutes", action: () => { if (t.ring) { t.ring = false; t.end = Date.now() + 300000; t.beeps = 0; } else if (t.paused != null) t.paused += 300000; else t.end += 300000; drawTimers(); } },
+      { label: "Restart", action: () => { t.ring = false; t.paused = null; t.beeps = 0; t.end = Date.now() + t.total * 1000; drawTimers(); } },
+      "-",
+      { label: "Open recipe", action: () => openRecipe(t.rid) },
+      { label: t.ring ? "Stop" : "Cancel timer", danger: true, action: () => { timers = timers.filter(y => y !== t); drawTimers(); tickTimers(); } },
+    ]);
+    if (t.ring) e.onclick = ev => { if (ev.target.closest("button")) return; timers = timers.filter(y => y !== t); drawTimers(); tickTimers(); };
+    box.append(e);
+  });
+  if (timers.length && !tick) tick = setInterval(tickTimers, 250);
+}
+
+/* ---------- more: sample, export, import ---------- */
+function addSample() {
+  const r = cleanRecipe({
+    id: uid(), title: "Buttermilk Pancakes", servings: 4, time: "25 min", tags: ["breakfast"],
+    ings: ["2 cups all-purpose flour", "2 tbsp sugar", "2 tsp baking powder", "1/2 tsp baking soda", "1/2 tsp salt", "2 cups buttermilk", "2 large eggs", "3 tbsp unsalted butter, melted", "? 1 cup blueberries"].map(text => ({ id: uid(), text })),
+    steps: ["Whisk the flour, sugar, baking powder, baking soda and salt in a large bowl.",
+      "In another bowl, whisk the buttermilk, eggs and melted butter.",
+      "Pour the wet mix into the dry and stir until just combined. Fold in the blueberries. Let the batter rest 5 minutes.",
+      "Heat a lightly greased griddle over medium heat. Pour 1/4 cup of batter per pancake and cook 2 to 3 minutes, until bubbles form.",
+      "Flip and cook 1 to 2 minutes more, until golden. Serve warm."].map(text => ({ id: uid(), text })),
+    note: "Sample recipe: try the Servings buttons, click an amount to scale from it, or press Cook.",
+  });
+  S.recipes.push(r); save(); openRecipe(r.id);
+}
+function moreMenu() {
+  const mb = Math.round(sizeMB() * 10) / 10;
+  return [
+    { label: "New recipe", action: () => newRecipe() },
+    { label: "Add a sample recipe", action: addSample },
+    "-",
+    { label: "Export all recipes", disabled: !S.recipes.length, action: () => tome.download("recipes-" + todayStr() + ".json", JSON.stringify({ kind: "tome-recipes", v: VER, recipes: S.recipes }, null, 1), "application/json") },
+    { label: "Import recipes...", action: () => $("importFile").click() },
+    "-",
+    { label: "Storage used: " + (mb < 0.1 ? "under 0.1" : mb) + " MB of 5", disabled: true },
+  ];
+}
+$("importFile").onchange = async () => {
+  const f = $("importFile").files[0];
+  $("importFile").value = "";
+  if (!f) return;
+  try {
+    const o = JSON.parse(await f.text());
+    const list = Array.isArray(o) ? o : arr(o.recipes);
+    if (!list.length) throw new Error("none");
+    let added = 0, upd = 0;
+    list.map(cleanRecipe).forEach(r => {
+      const old = byId(r.id);
+      if (!old) { S.recipes.push(r); added++; }
+      else if (r.updated > old.updated) { Object.assign(old, r); upd++; }
+    });
+    save(); render();
+    tome.toast(added + " recipe" + (added === 1 ? "" : "s") + " added" + (upd ? ", " + upd + " updated" : ""));
+  } catch (e) { tome.toast("That file doesn't hold recipes"); }
+};
+
+/* ---------- keys, paste and wiring ---------- */
+const typing = () => { const a = document.activeElement; return a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable); };
+document.addEventListener("keydown", e => {
+  if (document.querySelector(".ctx-root")) return;
+  if (document.querySelector(".lightbox")) { if (e.key === "Escape") document.querySelector(".lightbox").remove(); return; }
+  if (cook) {
+    if (typing()) { if (e.key === "Escape") { e.preventDefault(); document.activeElement.blur(); } return; }
+    if (e.key === "Escape") { e.preventDefault(); endCook(); }
+    else if (e.key === "ArrowRight" || e.key === " " || e.key === "PageDown") { e.preventDefault(); cookGo(1); }
+    else if (e.key === "ArrowLeft" || e.key === "PageUp") { e.preventDefault(); cookGo(-1); }
+    else if (e.key.toLowerCase() === "t" && !e.ctrlKey && !e.metaKey) { const b = $("cook").querySelector(".cm-text .tmr"); if (b) b.click(); }
+    return;
+  }
+  if (S.ui.view === "edit" && S.draft) {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitEdit(); }
+    else if (e.key === "Escape") { e.preventDefault(); cancelEdit(); }
+    else if (e.key.toLowerCase() === "s" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitEdit(); }
+    return;
+  }
+  if (typing()) { if (e.key === "Escape" && document.activeElement === $("q")) { $("q").value = ""; $("q").blur(); renderSide(); } return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = e.key.toLowerCase(), r = byId(S.ui.sel);
+  if (k === "n") { e.preventDefault(); newRecipe(); }
+  else if (e.key === "/") { e.preventDefault(); $("q").focus(); }
+  else if (k === "g") { e.preventDefault(); openGrocery(); }
+  else if (k === "c" && r && S.ui.view === "recipe") { e.preventDefault(); startCook(r.id); }
+  else if (k === "e" && r && S.ui.view === "recipe") { e.preventDefault(); editRecipe(r.id); }
+  else if ((e.key === "ArrowDown" || e.key === "ArrowUp") && S.recipes.length) {
+    e.preventDefault();
+    const v = visible().map(x => x.r.id), i = v.indexOf(S.ui.sel);
+    const j = clamp(i < 0 ? 0 : i + (e.key === "ArrowDown" ? 1 : -1), 0, v.length - 1);
+    if (v[j]) { openRecipe(v[j]); const b = $("list").querySelector('[data-id="' + v[j] + '"]'); if (b) b.scrollIntoView({ block: "nearest" }); }
+  }
+});
+document.addEventListener("paste", e => {
+  if (typing() || cook || (S.ui.view === "edit" && S.draft)) return;
+  const text = e.clipboardData.getData("text/plain");
+  if (!text.trim()) return;
+  e.preventDefault();
+  if (looksLikeRecipe(text)) { const p = parseRecipeText(text), d = {}; fillFrom(Object.assign(d, draftFrom(null)), p); newRecipe(d); }
+  else tome.toast("That doesn't look like a whole recipe. Click + New to type one in.");
+});
+$("q").addEventListener("input", () => renderSide());
+$("q").addEventListener("keydown", e => {
+  if (e.key === "Enter") { const v = visible(); if (v[0]) { openRecipe(v[0].r.id); $("q").blur(); } }
+  else if (e.key === "ArrowDown") { e.preventDefault(); $("q").blur(); const v = visible(); if (v[0]) openRecipe(v[0].r.id); }
+});
+$("new").onclick = () => newRecipe();
+$("gro").onclick = openGrocery;
+$("more").onclick = e => { const b = $("more").getBoundingClientRect(); tome.menu(b.left, b.top, moreMenu()); e.stopPropagation(); };
+$("list").addEventListener("contextmenu", e => { if (e.target.closest(".rc")) return; tome.menu(e, moreMenu()); });
+
+tome.data.onChange(v => {
+  const t = JSON.stringify(v);
+  if (sent.includes(t)) return;
+  const keep = S.draft, view = S.ui.view;
+  S = clean(v);
+  if (keep && view === "edit") { S.draft = keep; S.ui.view = "edit"; return; }
+  if (typing()) { document.activeElement.addEventListener("blur", () => render(), { once: true }); return; }
+  render();
+  if (cook) drawCook();
+});
+if (S.ui.view === "edit" && S.draft) { edBase = ""; renderSide(); renderEditor("title"); tome.toast("Picked up the recipe you were editing"); }
+else render();
+</script>
+</body>
+</html>
