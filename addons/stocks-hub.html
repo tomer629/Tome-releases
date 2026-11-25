@@ -5,7 +5,7 @@
 {
   "id": "stocks-hub",
   "name": "Stocks Hub",
-  "version": "0.3",
+  "version": "0.4",
   "api": 1,
   "description": "Personal stock, ETF, and net worth dashboard with thesis health, overlap analysis, and exit planning.",
   "icon": "\u003csvg viewBox=\"0 0 48 48\">\u003cpath d=\"M6 34l10-10 8 7 14-17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cpath d=\"M30 14h8v8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cline x1=\"6\" y1=\"41\" x2=\"42\" y2=\"41\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\"/>\u003c/svg>"
@@ -886,7 +886,7 @@
 
 <script>
 (function () {
-const ADDON = {"version":"0.3","changes":[{"version":"0.3","date":"2026-11-25","lines":["Needs Tome 1.40.0 or newer to update by itself.","Updates itself: Tome checks once a day and installs a newer Stocks Hub on its own, keeping all your data, then says so.","What's new shows once after an update, and any time from Settings.","With Tome 1.40, its data is saved in addons/stocks-hub inside your Tome data folder."]},{"version":"0.2","date":"2026-11-25","lines":["Needs Tome 1.39.0 or newer to sync.","Syncs between your PCs: in Tome, Settings, Sync, click Sync... beside Stocks Hub and tick your PCs. Positions with their notes, prices, cash, other assets, value over time and settings (your keys too) come along; each PC keeps its own call limit, auto refresh, and saved charts and news.","A change arriving from another PC while you're typing waits until you leave the box, so you're never knocked out of a note, and what you typed is kept.","Settings, Prices and calls says how to turn sync on."]},{"version":"0.1","date":"2026-11-24","lines":["First version kept in Tome-Addons. Installs over 1.0 (same id) and keeps all your data. Numbered 0.1 because it is pre-release (Thomas, 2026-11-24).","Totals match Fidelity: an import now counts core cash and pending activity, open options, and work plan funds, so All accounts and every account match Fidelity's totals to the cent.","Positions no longer at Fidelity can move to Closed when you import.","Account buttons show each account's value; right-click one to set its type (taxable, Roth, HSA, 401(k)).","Cash, open options, today's change and net worth in the top bar.","Position cards show value, gain or loss in dollars and percent, today's change, and shares at price. Search the list with /.","Each stock shows a price chart (cost, target and stop lines, decision log dots), where you hold it across accounts and through your ETFs, a plan with target and stop prices and how much to trim or add, and the next earnings date with recent headlines.","Overview: headline numbers, value over time (one point saved a day), allocation by account, type and sector, today's movers, tax-loss candidates, and other assets (like a home with what's owed) for your net worth.","Options tab lists open options from your last import.","Larger text, with Small, Medium and Large in Settings. Weights can use what you have invested or the total with cash.","A reminder bar when your last import is older than 7 days (change it in Settings).","Fewer internet calls: a daily call limit and counter, refresh only while the market is open, charts and news saved for a day, one call a second."]}]};
+const ADDON = {"version":"0.4","changes":[{"version":"0.4","date":"2026-11-25","lines":["No calls at all (prices, charts or news) while Tome previews or tests a new version before installing it, so updates never use up your daily calls."]},{"version":"0.3","date":"2026-11-25","lines":["Needs Tome 1.40.0 or newer to update by itself.","Updates itself: Tome checks once a day and installs a newer Stocks Hub on its own, keeping all your data, then says so.","What's new shows once after an update, and any time from Settings.","With Tome 1.40, its data is saved in addons/stocks-hub inside your Tome data folder."]},{"version":"0.2","date":"2026-11-25","lines":["Needs Tome 1.39.0 or newer to sync.","Syncs between your PCs: in Tome, Settings, Sync, click Sync... beside Stocks Hub and tick your PCs. Positions with their notes, prices, cash, other assets, value over time and settings (your keys too) come along; each PC keeps its own call limit, auto refresh, and saved charts and news.","A change arriving from another PC while you're typing waits until you leave the box, so you're never knocked out of a note, and what you typed is kept.","Settings, Prices and calls says how to turn sync on."]}]};
 /* ---- 00-core.js ---- */
 /* Core: state, helpers, and the numbers every view uses. */
 'use strict';
@@ -1200,6 +1200,8 @@ function canCall(site) {
   return true;
 }
 async function getJson(site, url) {
+  // Tome's install preview and its hidden test of a new version save nothing, so they make no calls (0.4).
+  if (hasTome && tome.preview) { const e = new Error('No calls in a preview'); e.limit = true; throw e; }
   if (!canCall(site)) {
     const e = new Error(site === 'av' && apiDay().av >= AV_DAILY_FREE ? 'Daily chart limit reached (25 a day on a free key)' : 'Daily call limit reached (change it in Settings)');
     e.limit = true;
@@ -3750,8 +3752,12 @@ async function init() {
   render();
   if (!(hasTome && tome.preview) && !(state.snapshots || []).some(s => s.date === todayStr()) && state.positions.length) { takeSnapshot(); saveState(); }
   maybeWhatsNew();
-  if (autoRefreshDue()) refreshAllQuotes(true);
-  setInterval(() => { if (autoRefreshDue() && !document.hidden) refreshAllQuotes(true); }, 10 * 60000);
+  // No price calls in a preview: Tome's install preview and its hidden test before an update (tome.preview) save nothing,
+  // so the calls would be spent for nothing.
+  if (!(hasTome && tome.preview)) {
+    if (autoRefreshDue()) refreshAllQuotes(true);
+    setInterval(() => { if (autoRefreshDue() && !document.hidden) refreshAllQuotes(true); }, 10 * 60000);
+  }
 }
 init();
 
