@@ -1,0 +1,3761 @@
+<!doctype html>
+<html lang="en">
+<head>
+<script type="application/json" id="tome-addon">
+{
+  "id": "stocks-hub",
+  "name": "Stocks Hub",
+  "version": "0.3",
+  "api": 1,
+  "description": "Personal stock, ETF, and net worth dashboard with thesis health, overlap analysis, and exit planning.",
+  "icon": "\u003csvg viewBox=\"0 0 48 48\">\u003cpath d=\"M6 34l10-10 8 7 14-17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cpath d=\"M30 14h8v8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cline x1=\"6\" y1=\"41\" x2=\"42\" y2=\"41\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\"/>\u003c/svg>"
+}
+</script>
+<meta charset="utf-8">
+<title>Stocks Hub</title>
+<!-- Built from tomer629/Tome-Addons stocks-hub/src by scripts/build.mjs. Edit the source files, not this file. -->
+<style>
+/* 10-base.css */
+/* Stocks Hub base styles (from 1.0). Sizes use --fs: Tome's text size (--t) times this add-on's own size setting (--s). */
+:root { --s: 1.15; --fs: calc(var(--t, 1) * var(--s)); }
+:root[data-size="s"] { --s: 1; }
+:root[data-size="l"] { --s: 1.3; }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font, var(--sans));
+    font-size: calc(13px * var(--fs));
+    line-height: 1.35;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    padding: 10px 14px 12px;
+    gap: 10px;
+    overflow: hidden;
+  }
+
+  /* Fallback nav bar when tome.bar is unavailable */
+  .fallback-nav {
+    display: none;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  .fallback-nav.show { display: flex; }
+
+  /* Summary & Account Strip */
+  .summary-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--col);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .acct-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: calc(12px * var(--fs));
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s, color 0.12s;
+  }
+  .pill:hover { background: var(--accent-soft); color: var(--fg); }
+  .pill.on {
+    background: var(--accent-soft);
+    color: var(--fg);
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .metrics-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .metric-item {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    font-size: calc(12.5px * var(--fs));
+  }
+  .metric-val {
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .metric-val.pos { color: var(--ok); }
+  .metric-val.neg { color: var(--late); }
+
+  .core-sat {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 145px;
+  }
+  .core-sat-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: calc(11px * var(--fs));
+    color: var(--muted);
+  }
+  .split-track {
+    height: 6px;
+    border-radius: 99px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    overflow: hidden;
+    display: flex;
+  }
+  .split-etf { background: var(--accent); height: 100%; }
+  .split-stk { background: var(--ok); height: 100%; }
+
+  .bar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .bar-actions button {
+    font-size: calc(12px * var(--fs));
+    padding: 5px 10px;
+  }
+
+  /* Main content workspace */
+  .workspace {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  .pane-left {
+    width: 320px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--col);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px;
+    gap: 8px;
+    min-height: 0;
+  }
+  .pane-right {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+  .pane-full {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 2px;
+  }
+
+  .list-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .filter-pills {
+    display: flex;
+    gap: 3px;
+    flex-wrap: wrap;
+  }
+  .filter-pills .pill { padding: 3px 8px; font-size: calc(11.5px * var(--fs)); }
+
+  .scroll-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-right: 2px;
+  }
+
+  /* Stock / ETF Row Card */
+  .pos-card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 9px 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .pos-card:hover { border-color: var(--accent); }
+  .pos-card.selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .pos-card.muted-card { opacity: 0.48; }
+
+  .pos-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .pos-ticker-wrap {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .pos-ticker {
+    font-weight: 700;
+    font-size: calc(14px * var(--fs));
+    letter-spacing: 0.2px;
+  }
+  .pos-weight {
+    font-family: var(--mono);
+    font-size: calc(11.5px * var(--fs));
+    color: var(--muted);
+  }
+  .pos-mid {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    font-size: calc(12px * var(--fs));
+  }
+  .pos-price {
+    font-family: var(--mono);
+    font-weight: 600;
+  }
+  .pos-pnl {
+    font-family: var(--mono);
+    font-size: calc(11.5px * var(--fs));
+    margin-left: 5px;
+  }
+  .pos-pnl.pos { color: var(--ok); }
+  .pos-pnl.neg { color: var(--late); }
+
+  .weight-track {
+    height: 4px;
+    border-radius: 99px;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  .weight-fill {
+    height: 100%;
+    border-radius: 99px;
+    background: var(--accent);
+  }
+  .weight-fill.over { background: var(--soon); }
+  .weight-fill.exit { background: var(--late); }
+
+  /* Badges */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: calc(10.5px * var(--fs));
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .badge.hold { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+  .badge.watch { background: var(--soon-soft); color: var(--soon); border-color: color-mix(in srgb, var(--soon) 45%, transparent); }
+  .badge.exit { background: var(--late-soft); color: var(--late); border-color: color-mix(in srgb, var(--late) 45%, transparent); }
+  .badge.warn { background: var(--soon-soft); color: var(--soon); border-color: color-mix(in srgb, var(--soon) 45%, transparent); }
+  .badge.stale { background: var(--card); color: var(--muted); border-color: var(--line); font-weight: 600; text-transform: none; }
+
+  /* Detail Panel */
+  .detail-header {
+    background: var(--col);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .detail-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .detail-title-left {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .detail-ticker {
+    font-size: calc(20px * var(--fs));
+    font-weight: 700;
+  }
+  .detail-name {
+    font-size: calc(13.5px * var(--fs));
+    color: var(--muted);
+  }
+  .detail-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .stat-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .stat-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .stat-lbl {
+    font-size: calc(11px * var(--fs));
+    color: var(--muted);
+  }
+  .stat-num {
+    font-family: var(--mono);
+    font-size: calc(13.5px * var(--fs));
+    font-weight: 600;
+  }
+  .stat-num.editable {
+    cursor: pointer;
+    border-bottom: 1px dashed var(--line);
+    display: inline-block;
+    width: fit-content;
+  }
+  .stat-num.editable:hover { border-bottom-color: var(--accent); color: var(--accent); }
+  .inline-price-input {
+    width: 88px;
+    padding: 2px 5px;
+    font-family: var(--mono);
+    font-size: calc(13px * var(--fs));
+  }
+
+  .tags-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+  }
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    font-size: calc(11.5px * var(--fs));
+  }
+  .tag-x {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 2px;
+    font-size: calc(12px * var(--fs));
+    line-height: 1;
+  }
+  .tag-x:hover { color: var(--late); }
+  .tag-add-input {
+    width: 110px;
+    padding: 2px 7px;
+    font-size: calc(11.5px * var(--fs));
+    border-radius: 999px;
+  }
+
+  /* Two-column middle section inside detail */
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  @media (max-width: 900px) {
+    .detail-grid { grid-template-columns: 1fr; }
+  }
+
+  .panel-card {
+    background: var(--col);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .panel-title {
+    font-size: calc(13.5px * var(--fs));
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .thesis-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 170px;
+    overflow-y: auto;
+  }
+  .thesis-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: var(--card);
+    border: 1px solid var(--line);
+  }
+  .thesis-item input[type="checkbox"] {
+    margin-top: 2px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .thesis-text {
+    flex: 1;
+    font-size: calc(12.5px * var(--fs));
+    line-height: 1.35;
+  }
+  .thesis-item.broken .thesis-text {
+    text-decoration: line-through;
+    color: var(--muted);
+  }
+  .row-del-btn {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 4px;
+    opacity: 0.45;
+  }
+  .thesis-item:hover .row-del-btn,
+  .log-item:hover .row-del-btn { opacity: 1; color: var(--late); }
+
+  .quick-add-row {
+    display: flex;
+    gap: 6px;
+  }
+  .quick-add-row input {
+    flex: 1;
+    font-size: calc(12px * var(--fs));
+    padding: 5px 8px;
+  }
+
+  .exit-textarea {
+    width: 100%;
+    min-height: 115px;
+    resize: vertical;
+    font-size: calc(12.5px * var(--fs));
+    line-height: 1.45;
+  }
+
+  /* Decision Log */
+  .log-card {
+    flex: 1;
+    min-height: 120px;
+  }
+  .log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    overflow-y: auto;
+    max-height: 180px;
+  }
+  .log-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 8px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: calc(12px * var(--fs));
+  }
+  .log-date {
+    font-family: var(--mono);
+    font-size: calc(11px * var(--fs));
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+  .log-text { flex: 1; }
+
+  /* ETF & Overview Bars */
+  .bar-row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 7px 9px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .bar-row-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: calc(12.5px * var(--fs));
+    flex-wrap: wrap;
+  }
+  .bar-track {
+    height: 8px;
+    border-radius: 99px;
+    background: var(--bg);
+    overflow: hidden;
+    display: flex;
+  }
+  .bar-fill-direct { background: var(--ok); height: 100%; }
+  .bar-fill-etf { background: var(--accent); height: 100%; }
+  .bar-fill-warn { background: var(--soon); height: 100%; }
+  .bar-fill-high { background: var(--late); height: 100%; }
+
+  .overview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 900px) {
+    .overview-grid { grid-template-columns: 1fr; }
+  }
+
+  /* Tables for Watchlist / Closed */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: calc(12.5px * var(--fs));
+  }
+  .data-table th {
+    text-align: left;
+    padding: 8px 10px;
+    color: var(--muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--line);
+    font-size: calc(11.5px * var(--fs));
+  }
+  .data-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+  }
+  .data-table tr:hover td { background: var(--accent-soft); }
+  .num { font-family: var(--mono); text-align: right; }
+
+  /* Modal Overlay */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 16px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-box {
+    background: var(--col);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    width: 100%;
+    max-width: 540px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .modal-head h3 { margin: 0; font-size: calc(15px * var(--fs)); }
+  .modal-body {
+    padding: 14px 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .modal-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--line);
+  }
+  .form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .form-row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--line);
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    cursor: pointer;
+    background: var(--card);
+    transition: border-color 0.15s;
+  }
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); }
+
+  .placeholder-box {
+    margin: auto;
+    max-width: 460px;
+    text-align: center;
+    padding: 28px 24px;
+    background: var(--col);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+
+/* 20-app.css */
+/* 0.1 additions: reminder bar, summary pills, position cards with value and P&L, charts, planner, overview cards. */
+.sub { color: var(--muted); }
+.pos { color: var(--ok); }
+.neg { color: var(--late); }
+.mono { font-family: var(--mono); }
+
+/* Import reminder */
+.remind-bar {
+  display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  padding: 7px 12px; border-radius: 10px;
+  background: var(--soon-soft); color: var(--fg);
+  border: 1px solid color-mix(in srgb, var(--soon) 45%, transparent);
+  font-size: calc(13px * var(--fs));
+}
+.remind-bar[hidden] { display: none; }
+.remind-bar .grow { flex: 1; }
+.remind-bar button { font-size: calc(12.5px * var(--fs)); padding: 4px 10px; }
+
+/* Summary strip */
+.summary-bar { padding: 8px 12px; }
+.acct-tabs .pill { font-size: calc(12.5px * var(--fs)); }
+.acct-tabs .pill .acct-val { font-family: var(--mono); font-size: calc(11px * var(--fs)); color: var(--muted); margin-left: 5px; }
+.acct-tabs .pill.on .acct-val { color: var(--fg); }
+.metrics-group { gap: 16px; }
+.metric-item { font-size: calc(13px * var(--fs)); }
+.metric-val { font-size: calc(14px * var(--fs)); }
+.mini-pill {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 2px 9px; border-radius: 999px;
+  background: var(--card); border: 1px solid var(--line);
+  font-size: calc(12px * var(--fs)); color: var(--muted); cursor: default;
+}
+.mini-pill b { font-family: var(--mono); color: var(--fg); font-weight: 600; }
+.mini-pill.click { cursor: pointer; }
+.mini-pill.click:hover { border-color: var(--accent); }
+
+/* Position cards */
+.pane-left { width: 360px; }
+.pos-card { padding: 10px 12px; gap: 6px; }
+.pos-ticker { font-size: calc(15px * var(--fs)); }
+.pos-name { font-size: calc(12px * var(--fs)); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pos-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.pos-value { font-family: var(--mono); font-weight: 700; font-size: calc(14px * var(--fs)); }
+.pos-pnl-line { font-family: var(--mono); font-size: calc(12px * var(--fs)); }
+.pos-day { font-family: var(--mono); font-size: calc(11.5px * var(--fs)); }
+.pos-acct { font-size: calc(12px * var(--fs)); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.list-toolbar .search { width: 100%; font-size: calc(12.5px * var(--fs)); padding: 5px 9px; }
+.list-foot { flex-shrink: 0; display: flex; justify-content: space-between; font-size: calc(12px * var(--fs)); color: var(--muted); padding: 2px 2px 0; }
+
+/* Detail layout */
+.detail-grid-3 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 10px; flex-shrink: 0; }
+@media (max-width: 1100px) { .detail-grid-3 { grid-template-columns: 1fr; } }
+.stack { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.chip-row { display: flex; gap: 4px; flex-wrap: wrap; }
+.chip-row .pill { padding: 2px 8px; font-size: calc(11.5px * var(--fs)); }
+.panel-card .note-line { font-size: calc(12px * var(--fs)); color: var(--muted); }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: calc(13px * var(--fs)); }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); text-align: right; }
+
+/* Charts */
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .ax { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); }
+.chart .grid { stroke: var(--line); stroke-width: 1; }
+.chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.chart .area { fill: var(--accent); opacity: 0.1; }
+.chart .ref { stroke-width: 1.3; stroke-dasharray: 5 4; }
+.chart .ref-cost { stroke: var(--muted); }
+.chart .ref-target { stroke: var(--ok); }
+.chart .ref-stop { stroke: var(--late); }
+.chart .ref-label { font-family: var(--mono); font-size: 10.5px; }
+.chart .dot { fill: var(--soon); stroke: var(--col); stroke-width: 1.5; }
+.chart .cross { stroke: var(--muted); stroke-width: 1; }
+.chart .hover-dot { fill: var(--accent); stroke: var(--col); stroke-width: 2; }
+.chart-empty { padding: 22px 10px; text-align: center; color: var(--muted); font-size: calc(12.5px * var(--fs)); }
+.chart-tip {
+  position: fixed; z-index: 60; pointer-events: none;
+  padding: 5px 9px; border-radius: 6px; background: var(--fg); color: var(--bg);
+  font-size: calc(12px * var(--fs)); font-family: var(--mono); white-space: nowrap;
+}
+.chart-tip[hidden] { display: none; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: calc(12px * var(--fs)); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+/* Donuts */
+.donut-wrap { display: flex; align-items: center; gap: 14px; }
+.donut-wrap svg { flex: none; width: 120px; height: 120px; }
+.donut-list { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; font-size: calc(12.5px * var(--fs)); }
+.donut-list .row { display: flex; align-items: center; gap: 6px; }
+.donut-list .row i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.donut-list .row .lbl { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.donut-list .row .pct { font-family: var(--mono); color: var(--muted); }
+
+/* KPI cards */
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; flex-shrink: 0; }
+.kpi { background: var(--col); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.kpi .k { font-size: calc(12px * var(--fs)); color: var(--muted); }
+.kpi .v { font-family: var(--mono); font-weight: 700; font-size: calc(18px * var(--fs)); }
+.kpi .d { font-family: var(--mono); font-size: calc(12px * var(--fs)); }
+
+/* Lists in cards */
+.mini-table { width: 100%; border-collapse: collapse; font-size: calc(12.5px * var(--fs)); }
+.mini-table td, .mini-table th { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+.mini-table th { color: var(--muted); font-weight: 600; font-size: calc(11.5px * var(--fs)); }
+.mini-table td.num, .mini-table th.num { text-align: right; font-family: var(--mono); }
+.mini-table tr.click { cursor: pointer; }
+.mini-table tr.click:hover td { background: var(--accent-soft); }
+.scroll-box { max-height: 260px; overflow-y: auto; }
+
+/* Planner */
+.range-bar { position: relative; height: 10px; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); margin: 16px 0 18px; }
+.range-bar .seg { position: absolute; top: 0; bottom: 0; border-radius: 99px; }
+.range-bar .mark { position: absolute; top: -5px; width: 2px; height: 18px; border-radius: 1px; }
+.range-bar .mark span { position: absolute; top: -17px; transform: translateX(-50%); font-family: var(--mono); font-size: calc(10.5px * var(--fs)); white-space: nowrap; }
+.range-bar .mark.below span { top: 19px; }
+.plan-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.plan-inputs label { font-size: calc(11.5px * var(--fs)); color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+.plan-inputs input { font-family: var(--mono); font-size: calc(13px * var(--fs)); padding: 4px 7px; width: 100%; }
+.plan-out { font-size: calc(12.5px * var(--fs)); line-height: 1.5; }
+.plan-out b { font-family: var(--mono); }
+
+/* News */
+.news-list { display: flex; flex-direction: column; gap: 6px; }
+.news-item { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-radius: 6px; background: var(--card); border: 1px solid var(--line); cursor: pointer; text-decoration: none; color: inherit; }
+.news-item:hover { border-color: var(--accent); }
+.news-item .h { font-size: calc(12.5px * var(--fs)); line-height: 1.35; }
+.news-item .m { font-size: calc(11px * var(--fs)); color: var(--muted); }
+.earn-line { font-size: calc(13px * var(--fs)); }
+.earn-line b { font-family: var(--mono); }
+
+/* Settings tabs */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 6px; flex-wrap: wrap; }
+.tab-panel[hidden] { display: none; }
+.check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: calc(13px * var(--fs)); }
+.hint { font-size: calc(11.5px * var(--fs)); color: var(--muted); line-height: 1.4; }
+.api-meter { display: flex; gap: 14px; font-size: calc(12.5px * var(--fs)); padding: 6px 10px; border-radius: 8px; background: var(--card); border: 1px solid var(--line); }
+.api-meter b { font-family: var(--mono); }
+.modal-box.wide { max-width: 720px; }
+.field label { font-size: calc(12px * var(--fs)); }
+.field input, .field select, .field textarea { font-size: calc(13px * var(--fs)); width: 100%; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.error { color: var(--late); }
+.preview-list { font-size: calc(12px * var(--fs)); line-height: 1.5; max-height: 160px; overflow-y: auto; padding: 6px 8px; border-radius: 6px; background: var(--card); border: 1px solid var(--line); }
+.preview-list .row { display: flex; justify-content: space-between; gap: 10px; }
+.preview-list .row b { font-family: var(--mono); font-weight: 600; }
+
+/* Tome's page styles give every svg an outline (they're meant for icons); charts set their own. */
+.chart svg, .donut-wrap svg { stroke: none; }
+.chart svg text, .donut-wrap svg text { stroke: none; }
+.donut-wrap svg path { stroke: var(--col); stroke-width: 1; }
+.pos-day { white-space: nowrap; flex: none; }
+.stat-strip { grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); }
+.stat-num { overflow-wrap: anywhere; }
+/* Top strip: accounts and buttons on the first row, totals on the second. */
+.summary-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "acct act" "met met"; row-gap: 6px; align-items: center; }
+.summary-bar .acct-tabs { grid-area: acct; }
+.summary-bar .metrics-group { grid-area: met; }
+.summary-bar .bar-actions { grid-area: act; align-self: start; }
+.core-sat { min-width: 180px; }
+
+.pane-right { overflow-x: hidden; }
+
+/* What's new */
+.wn { max-height: 60vh; overflow: auto; }
+.wn-head { margin: 10px 0 4px; font-size: 1.05em; }
+.wn-head:first-child { margin-top: 0; }
+.wn-head .muted { font-weight: 400; font-size: .85em; margin-left: 6px; }
+.wn-list { margin: 0 0 8px; padding-left: 20px; line-height: 1.5; }
+.modal-foot .wn-btn { margin-right: auto; }
+
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="fallbackNav" class="fallback-nav"></div>
+  <div id="remindBar" class="remind-bar" hidden></div>
+
+  <div class="summary-bar">
+    <div id="accountTabs" class="acct-tabs"></div>
+    <div id="metrics" class="metrics-group"></div>
+    <div class="bar-actions">
+      <button id="btnImport" class="quiet" title="Import a Fidelity Positions CSV">Import CSV</button>
+      <button id="btnRefresh" class="quiet" title="Refresh quotes">Refresh</button>
+      <button id="btnSettings" class="icon-btn" title="Settings">
+        <svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="workspace" class="workspace"></div>
+</div>
+
+<div id="modalBackdrop" class="modal-backdrop">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head">
+      <h3 id="modalTitle">Window</h3>
+      <button id="modalClose" class="icon-btn" title="Close">
+        <svg viewBox="0 0 24 24" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="modalBody" class="modal-body"></div>
+    <div id="modalFoot" class="modal-foot"></div>
+  </div>
+</div>
+<div id="chartTip" class="chart-tip" hidden></div>
+
+<script>
+(function () {
+const ADDON = {"version":"0.3","changes":[{"version":"0.3","date":"2026-11-25","lines":["Needs Tome 1.40.0 or newer to update by itself.","Updates itself: Tome checks once a day and installs a newer Stocks Hub on its own, keeping all your data, then says so.","What's new shows once after an update, and any time from Settings.","With Tome 1.40, its data is saved in addons/stocks-hub inside your Tome data folder."]},{"version":"0.2","date":"2026-11-25","lines":["Needs Tome 1.39.0 or newer to sync.","Syncs between your PCs: in Tome, Settings, Sync, click Sync... beside Stocks Hub and tick your PCs. Positions with their notes, prices, cash, other assets, value over time and settings (your keys too) come along; each PC keeps its own call limit, auto refresh, and saved charts and news.","A change arriving from another PC while you're typing waits until you leave the box, so you're never knocked out of a note, and what you typed is kept.","Settings, Prices and calls says how to turn sync on."]},{"version":"0.1","date":"2026-11-24","lines":["First version kept in Tome-Addons. Installs over 1.0 (same id) and keeps all your data. Numbered 0.1 because it is pre-release (Thomas, 2026-11-24).","Totals match Fidelity: an import now counts core cash and pending activity, open options, and work plan funds, so All accounts and every account match Fidelity's totals to the cent.","Positions no longer at Fidelity can move to Closed when you import.","Account buttons show each account's value; right-click one to set its type (taxable, Roth, HSA, 401(k)).","Cash, open options, today's change and net worth in the top bar.","Position cards show value, gain or loss in dollars and percent, today's change, and shares at price. Search the list with /.","Each stock shows a price chart (cost, target and stop lines, decision log dots), where you hold it across accounts and through your ETFs, a plan with target and stop prices and how much to trim or add, and the next earnings date with recent headlines.","Overview: headline numbers, value over time (one point saved a day), allocation by account, type and sector, today's movers, tax-loss candidates, and other assets (like a home with what's owed) for your net worth.","Options tab lists open options from your last import.","Larger text, with Small, Medium and Large in Settings. Weights can use what you have invested or the total with cash.","A reminder bar when your last import is older than 7 days (change it in Settings).","Fewer internet calls: a daily call limit and counter, refresh only while the market is open, charts and news saved for a day, one call a second."]}]};
+/* ---- 00-core.js ---- */
+/* Core: state, helpers, and the numbers every view uses. */
+'use strict';
+
+const DEFAULT_RESEARCH_LINKS = [
+  { label: 'Yahoo Finance', url: 'https://finance.yahoo.com/quote/{TICKER}' },
+  { label: 'TradingView Chart', url: 'https://www.tradingview.com/chart/?symbol={TICKER}' },
+  { label: 'Finviz', url: 'https://finviz.com/quote.ashx?t={TICKER}' },
+  { label: 'SEC EDGAR Filings', url: 'https://www.sec.gov/edgar/browse/?CIK={TICKER}' },
+  { label: 'ETF Holdings (StockAnalysis)', url: 'https://stockanalysis.com/etf/{TICKER}/holdings/', etfOnly: true }
+];
+
+const KNOWN_ETFS = new Set([
+  'VOO','VTI','SPY','IVV','QQQ','QQQM','SCHD','VGT','VXUS','VEA','VWO','BND','AGG',
+  'IWM','DIA','VIG','VYM','JEPI','JEPQ','XLK','XLF','XLV','XLE','XLI','XLY','XLP',
+  'ARKK','SMH','SOXX','GLD','SLV','TLT','SGOV','BIL','VT','VO','VB','VUG','VTV','AVUV'
+]);
+
+const ACCOUNT_KINDS = [
+  { id: 'taxable', label: 'Taxable brokerage' },
+  { id: 'roth', label: 'Roth IRA' },
+  { id: 'ira', label: 'Traditional IRA' },
+  { id: 'hsa', label: 'Health savings (HSA)' },
+  { id: 'k401', label: '401(k) or work plan' },
+  { id: 'cash', label: 'Cash account' }
+];
+const ASSET_CATEGORIES = ['External 401(k)', 'Real Estate / Home', 'Cash / Bank', 'Vehicle', 'Other'];
+
+function defaultState() {
+  return {
+    version: 1,
+    positions: [],
+    watchlist: [],
+    closed: [],
+    etfCache: {},
+    lastQuoteRefresh: 0,
+    // 0.1
+    cashByAccount: {},          // account name: core cash + pending activity
+    openOptionsByAccount: {},   // account name: net current value of open option rows
+    openOptions: [],            // option rows from the last import (shown in the Options tab)
+    accountKinds: {},           // account name: taxable | roth | ira | hsa | k401 | cash
+    manualAssets: [],           // { id, name, category, value, owed, updatedAt, notes }
+    snapshots: [],              // { date, total, invested, cash, options, manual, byAccount, prices }
+    lastImport: 0,
+    api: { day: '', finnhub: 0, av: 0 },
+    cache: { chart: {}, news: {}, earn: {} },
+    remindSnooze: '',
+    settings: {
+      finnhubKey: '',
+      alphaVantageKey: '',
+      customQuoteUrl: '',
+      refreshHours: 4,
+      marketHoursOnly: true,
+      dailyCallLimit: 150,
+      autoChart: true,
+      autoNews: true,
+      maxStockPct: 10,
+      maxSectorPct: 30,
+      staleDays: 90,
+      importRemindDays: 7,
+      weightBase: 'invested',   // invested | total
+      fontSize: 'm',            // s | m | l
+      netWorthInBar: true,
+      researchLinks: DEFAULT_RESEARCH_LINKS.slice()
+    }
+  };
+}
+
+let state = defaultState();
+const ui = {
+  view: 'positions',       // positions | etfs | overview | watchlist | closed | options
+  account: 'ALL',
+  statusFilter: 'all',
+  search: '',
+  selectedId: null,
+  whatIfExcluded: new Set(),
+  refreshing: false,
+  refreshDone: 0,
+  refreshTotal: 0,
+  editingPriceId: null,
+  chartRange: 'all',
+  historySeries: 'total',
+  historyRange: 'all'
+};
+
+const hasTome = typeof window.tome !== 'undefined' && !!window.tome;
+const hasBar = hasTome && window.tome.bar && typeof window.tome.bar.set === 'function';
+
+function toast(msg, opts) { if (hasTome && tome.toast) tome.toast(msg, opts); }
+function openUrl(url) { if (hasTome && tome.open) tome.open(url); else window.open(url, '_blank', 'noopener'); }
+function downloadFile(name, text, mime) { if (hasTome && tome.download) tome.download(name, text, mime); }
+function showMenu(ev, items) { if (hasTome && tome.menu) tome.menu(ev, items); }
+
+let saveTimer = null;
+async function saveState() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (hasTome && tome.data && !tome.preview) {
+    try { await tome.data.set(state); } catch (e) { console.error(e); toast('Not saved: ' + e.message); }
+  }
+}
+function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveState, 400); }
+
+function uid() { return 'p_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7); }
+function ymd(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function todayStr() { return ymd(new Date()); }
+function addDays(dateStr, n) { const d = new Date(dateStr + 'T12:00:00'); d.setDate(d.getDate() + n); return ymd(d); }
+function daysSince(dateStr) {
+  if (!dateStr) return 999;
+  const t = typeof dateStr === 'number' ? dateStr : Date.parse(dateStr);
+  if (isNaN(t) || !t) return 999;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+function esc(str) {
+  return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function num(v) { const n = Number(v); return isFinite(n) ? n : 0; }
+function fmtMoney(n) {
+  const val = num(n);
+  return (val < 0 ? '-' : '') + '$' + Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtMoneyShort(n) {
+  const val = num(n);
+  return (val < 0 ? '-' : '') + '$' + Math.abs(val).toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+function fmtSigned(n, short) { const v = num(n); return (v > 0 ? '+' : '') + (short ? fmtMoneyShort(v) : fmtMoney(v)); }
+function fmtPct(n, showSign) { const val = num(n); return (showSign && val > 0 ? '+' : '') + val.toFixed(1) + '%'; }
+function cls(n) { return num(n) >= 0 ? 'pos' : 'neg'; }
+function fmtShares(n) { return num(n).toLocaleString('en-US', { maximumFractionDigits: 4 }); }
+
+/* A CUSIP (employer plan funds like 66586Y488) can't be quoted. */
+function isCusip(sym) { return /^[0-9][0-9A-Z]{8}$/.test(String(sym || '')); }
+function canQuote(p) { return !!p.ticker && !isCusip(p.ticker) && !p.valueOnly; }
+
+// ---------- Position math ----------
+function posPrice(p) { return num(p.currentPrice) || num(p.avgCost); }
+function posValue(p) {
+  if (p.valueOnly) return num(p.valueOnly);
+  // Fidelity's own rounded value while the price is still the imported one, so totals match to the cent.
+  if (p.fidValue != null && num(p.fidPrice) === posPrice(p)) return num(p.fidValue);
+  return num(p.shares) * posPrice(p);
+}
+function posCost(p) {
+  if (p.valueOnly && p.costTotal != null) return num(p.costTotal);
+  return num(p.shares) * num(p.avgCost);
+}
+function posPnl(p) { return posValue(p) - posCost(p); }
+function posPnlPct(p) { const c = posCost(p); return c > 0 ? (posPnl(p) / c) * 100 : 0; }
+function posDay(p) { return p.valueOnly ? 0 : num(p.shares) * num(p.dayChange); }
+
+function getThesisStatus(p) {
+  if (p.manualStatus) return p.manualStatus;
+  const items = Array.isArray(p.thesis) ? p.thesis : [];
+  if (!items.length) return 'hold';
+  const broken = items.filter(t => !t.checked).length;
+  return broken === 0 ? 'hold' : broken === 1 ? 'watch' : 'exit';
+}
+function isStale(p) { return !p.isEtf && daysSince(p.lastReviewed) >= (num(state.settings.staleDays) || 90); }
+
+/* What kind of holding this is, for the allocation donut. */
+function assetType(p) {
+  const d = (p.name || '').toUpperCase();
+  if (isCusip(p.ticker) || accountKind(p.account) === 'k401') return '401(k) funds';
+  if (/BITCOIN|ETHER|CRYPTO/.test(d)) return 'Crypto';
+  if (/\bGOLD\b|\bSILVER\b|PLATINUM|PRECIOUS/.test(d)) return 'Metals';
+  if (/TREAS|0-3 MNTH|T-BILL|MONEY MARKET|\bCLO\b|BOND/.test(d) || ['SGOV','BIL','CLOI','BND','AGG','TLT'].includes(p.ticker)) return 'Bonds and T-bills';
+  return p.isEtf ? 'ETFs and funds' : 'Stocks';
+}
+
+// ---------- Accounts ----------
+function guessKind(name) {
+  const n = String(name || '').toLowerCase();
+  if (/roth/.test(n)) return 'roth';
+  if (/\bira\b|rollover|traditional/.test(n)) return 'ira';
+  if (/health savings|\bhsa\b/.test(n)) return 'hsa';
+  if (/401|403|457|plan\b|retirement/.test(n)) return 'k401';
+  if (/cash acct|debit|checking/.test(n)) return 'cash';
+  return 'taxable';
+}
+function accountKind(name) { return (state.accountKinds && state.accountKinds[name]) || guessKind(name); }
+function kindLabel(id) { const k = ACCOUNT_KINDS.find(x => x.id === id); return k ? k.label : id; }
+function isTaxable(name) { return accountKind(name) === 'taxable'; }
+
+function getAccounts() {
+  const set = new Set();
+  state.positions.forEach(p => { if (p.account) set.add(p.account); });
+  Object.keys(state.cashByAccount || {}).forEach(a => { if (Math.abs(num(state.cashByAccount[a])) >= 1) set.add(a); });
+  Object.keys(state.openOptionsByAccount || {}).forEach(a => { if (num(state.openOptionsByAccount[a])) set.add(a); });
+  return Array.from(set).sort((a, b) => accountTotal(b) - accountTotal(a));
+}
+function inAccount(name) { return ui.account === 'ALL' || name === ui.account; }
+function accountTotal(name) {
+  let v = 0;
+  state.positions.forEach(p => { if (p.account === name) v += posValue(p); });
+  return v + num((state.cashByAccount || {})[name]) + num((state.openOptionsByAccount || {})[name]);
+}
+function accountPnl(name) {
+  let v = 0;
+  state.positions.forEach(p => { if (p.account === name) v += posPnl(p); });
+  return v;
+}
+
+function getFilteredPositions(opts) {
+  const onlyStocks = opts && opts.onlyStocks;
+  const onlyEtfs = opts && opts.onlyEtfs;
+  return state.positions.filter(p => {
+    if (!inAccount(p.account)) return false;
+    if (onlyStocks && p.isEtf) return false;
+    if (onlyEtfs && !p.isEtf) return false;
+    return true;
+  });
+}
+function sumMap(map) {
+  let v = 0;
+  Object.keys(map || {}).forEach(a => { if (inAccount(a)) v += num(map[a]); });
+  return v;
+}
+function manualNet() {
+  return (state.manualAssets || []).reduce((s, a) => s + num(a.value) - num(a.owed), 0);
+}
+
+/* Every total in the filtered view. invested = holdings only; total = holdings + cash + open options (matches Fidelity). */
+function getPortfolioTotals(excludeWhatIf) {
+  const list = getFilteredPositions();
+  let invested = 0, cost = 0, etfVal = 0, stkVal = 0, day = 0, dayKnown = 0;
+  list.forEach(p => {
+    if (excludeWhatIf && p.isEtf && ui.whatIfExcluded.has(p.id)) return;
+    const v = posValue(p);
+    invested += v;
+    cost += posCost(p);
+    if (p.isEtf) etfVal += v; else stkVal += v;
+    if (p.dayChange != null && !p.valueOnly) { day += posDay(p); dayKnown++; }
+  });
+  const cash = sumMap(state.cashByAccount);
+  const options = sumMap(state.openOptionsByAccount);
+  const total = invested + cash + options;
+  const pnl = invested - cost;
+  const prevVal = invested - day;
+  return {
+    invested, totalVal: invested, cost, totalCost: cost, pnl,
+    pnlPct: cost > 0 ? (pnl / cost) * 100 : 0,
+    etfVal, stkVal,
+    etfPct: invested > 0 ? (etfVal / invested) * 100 : 0,
+    stkPct: invested > 0 ? (stkVal / invested) * 100 : 0,
+    cash, options, total,
+    day, dayPct: prevVal > 0 ? (day / prevVal) * 100 : 0, dayKnown,
+    weightBase: state.settings.weightBase === 'total' ? total : invested,
+    netWorth: total + (ui.account === 'ALL' ? manualNet() : 0)
+  };
+}
+function weightOf(p, totals) { return totals.weightBase > 0 ? (posValue(p) / totals.weightBase) * 100 : 0; }
+
+/* Whole-portfolio totals regardless of the account filter (snapshots, net worth). */
+function allTotals() {
+  const keep = ui.account; ui.account = 'ALL';
+  const t = getPortfolioTotals(false);
+  ui.account = keep;
+  return t;
+}
+
+// ---------- Snapshots: one per day, from imports and refreshes ----------
+function takeSnapshot() {
+  const t = allTotals();
+  if (!state.positions.length && !t.cash) return;
+  const byAccount = {};
+  getAccountsAll().forEach(a => { byAccount[a] = Math.round(accountTotal(a) * 100) / 100; });
+  const prices = {};
+  state.positions.forEach(p => { if (!p.valueOnly && posPrice(p)) prices[p.ticker] = Math.round(posPrice(p) * 10000) / 10000; });
+  const snap = {
+    date: todayStr(),
+    total: Math.round(t.total * 100) / 100,
+    invested: Math.round(t.invested * 100) / 100,
+    cash: Math.round(t.cash * 100) / 100,
+    options: Math.round(t.options * 100) / 100,
+    manual: Math.round(manualNet() * 100) / 100,
+    byAccount, prices
+  };
+  if (!Array.isArray(state.snapshots)) state.snapshots = [];
+  const i = state.snapshots.findIndex(s => s.date === snap.date);
+  if (i >= 0) state.snapshots[i] = snap; else state.snapshots.push(snap);
+  state.snapshots.sort((a, b) => a.date < b.date ? -1 : 1);
+  if (state.snapshots.length > 1500) state.snapshots = state.snapshots.slice(-1500);
+}
+function getAccountsAll() {
+  const keep = ui.account; ui.account = 'ALL';
+  const a = getAccounts(); ui.account = keep; return a;
+}
+
+function sizeAttr() { document.documentElement.dataset.size = state.settings.fontSize || 'm'; }
+
+/* ---- 10-api.js ---- */
+/* Internet calls. Only two sites: finnhub.io (quotes, earnings, news) and alphavantage.co (price history, ETF holdings).
+   Every call is counted per day and stops at the daily limit in Settings. Charts, earnings and news are cached for a day. */
+
+const DAY_MS = 86400000;
+const AV_DAILY_FREE = 25;
+
+function apiDay() {
+  const t = todayStr();
+  if (!state.api || state.api.day !== t) state.api = { day: t, finnhub: 0, av: 0 };
+  return state.api;
+}
+function callsToday() { const a = apiDay(); return a.finnhub + a.av; }
+function canCall(site) {
+  const a = apiDay();
+  const limit = num(state.settings.dailyCallLimit) || 150;
+  if (a.finnhub + a.av >= limit) return false;
+  if (site === 'av' && a.av >= AV_DAILY_FREE) return false;
+  return true;
+}
+async function getJson(site, url) {
+  if (!canCall(site)) {
+    const e = new Error(site === 'av' && apiDay().av >= AV_DAILY_FREE ? 'Daily chart limit reached (25 a day on a free key)' : 'Daily call limit reached (change it in Settings)');
+    e.limit = true;
+    throw e;
+  }
+  apiDay()[site]++;
+  saveSoon();
+  const res = await fetch(url);
+  if (res.status === 429) { const e = new Error('The site asked us to slow down. Try again in a minute.'); e.limit = true; throw e; }
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+/* US market hours, worked out in New York time. */
+function marketOpen(now) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(now || new Date());
+  const get = t => (parts.find(x => x.type === t) || {}).value;
+  const wd = get('weekday');
+  const mins = Number(get('hour')) % 24 * 60 + Number(get('minute'));
+  if (wd === 'Sat' || wd === 'Sun') return false;
+  return mins >= 9 * 60 + 30 && mins <= 16 * 60 + 15;
+}
+
+// ---------- Quotes ----------
+async function fetchQuote(ticker) {
+  const custom = (state.settings.customQuoteUrl || '').trim();
+  if (custom) {
+    const res = await fetch(custom.replace(/\{TICKER\}/gi, encodeURIComponent(ticker)));
+    if (res.ok) {
+      const d = await res.json();
+      const px = Number(d.price != null ? d.price : d.c);
+      if (px > 0) return { price: px, change: d.d != null ? Number(d.d) : (d.change != null ? Number(d.change) : null), pct: d.dp != null ? Number(d.dp) : null };
+    }
+  }
+  const key = (state.settings.finnhubKey || '').trim();
+  if (!key) return null;
+  const d = await getJson('finnhub', 'https://finnhub.io/api/v1/quote?symbol=' + encodeURIComponent(ticker) + '&token=' + encodeURIComponent(key));
+  if (!d || !(Number(d.c) > 0)) return null;
+  return { price: Number(d.c), change: d.d != null ? Number(d.d) : null, pct: d.dp != null ? Number(d.dp) : null };
+}
+function applyQuote(ticker, q) {
+  const at = Date.now();
+  state.positions.forEach(p => {
+    if (p.ticker !== ticker || p.valueOnly) return;
+    p.currentPrice = q.price;
+    if (q.change != null) { p.dayChange = q.change; p.dayPct = q.pct; }
+    p.quoteAt = at;
+  });
+  state.watchlist.forEach(w => { if (w.ticker === ticker) { w.currentPrice = q.price; if (q.pct != null) w.dayPct = q.pct; } });
+}
+function quoteTickers() {
+  return Array.from(new Set([
+    ...state.positions.filter(canQuote).map(p => p.ticker),
+    ...state.watchlist.map(w => w.ticker).filter(t => t && !isCusip(t))
+  ]));
+}
+function hasQuoteSource() { return !!(state.settings.finnhubKey || state.settings.customQuoteUrl); }
+
+async function refreshSingleQuote(p) {
+  if (!hasQuoteSource()) { toast('Add a Finnhub key in Settings, or click a price to type it'); return; }
+  try {
+    const q = await fetchQuote(p.ticker);
+    if (q) { applyQuote(p.ticker, q); takeSnapshot(); saveState(); toast(p.ticker + ': ' + fmtMoney(q.price)); render(); }
+    else toast('No quote for ' + p.ticker);
+  } catch (e) { toast(e.limit ? e.message : 'Quote failed for ' + p.ticker); }
+}
+
+/* Finnhub's free key allows 60 calls a minute, so calls go one a second. */
+async function refreshAllQuotes(silent) {
+  if (ui.refreshing) return;
+  if (!hasQuoteSource()) { if (!silent) toast('Add a Finnhub key in Settings to refresh prices'); return; }
+  const tickers = quoteTickers();
+  if (!tickers.length) return;
+  const room = (num(state.settings.dailyCallLimit) || 150) - callsToday();
+  if (!state.settings.customQuoteUrl && room < tickers.length) {
+    if (!silent) toast('A refresh needs ' + tickers.length + ' calls and ' + Math.max(0, room) + ' are left today. Raise the limit in Settings.');
+    return;
+  }
+  ui.refreshing = true; ui.refreshDone = 0; ui.refreshTotal = tickers.length;
+  renderSummaryBar();
+  let updated = 0, stopped = '';
+  for (const tk of tickers) {
+    if (!ui.refreshing) break;
+    try {
+      const q = await fetchQuote(tk);
+      if (q) { applyQuote(tk, q); updated++; }
+    } catch (e) { if (e.limit) { stopped = e.message; break; } }
+    ui.refreshDone++;
+    renderSummaryBar();
+    await new Promise(r => setTimeout(r, state.settings.customQuoteUrl ? 120 : 1050));
+  }
+  state.lastQuoteRefresh = Date.now();
+  ui.refreshing = false;
+  takeSnapshot();
+  await saveState();
+  render();
+  if (stopped) toast('Stopped: ' + stopped);
+  else if (!silent) toast('Refreshed ' + updated + ' of ' + tickers.length + ' prices');
+}
+
+function autoRefreshDue() {
+  const s = state.settings;
+  const hrs = num(s.refreshHours);
+  if (!hrs || !hasQuoteSource() || !state.positions.length) return false;
+  if (s.marketHoursOnly && !marketOpen()) return false;
+  return Date.now() - num(state.lastQuoteRefresh) > hrs * 3600000;
+}
+
+// ---------- Company profile (sector) ----------
+async function fetchFinnhubProfile(p) {
+  const key = (state.settings.finnhubKey || '').trim();
+  if (!key) return;
+  try {
+    const d = await getJson('finnhub', 'https://finnhub.io/api/v1/stock/profile2?symbol=' + encodeURIComponent(p.ticker) + '&token=' + encodeURIComponent(key));
+    if (d) {
+      if (!p.sector && d.finnhubIndustry) p.sector = d.finnhubIndustry;
+      if (!p.name && d.name) p.name = d.name;
+      saveState(); render();
+    }
+  } catch (_) {}
+}
+
+// ---------- Price history (Alpha Vantage, 100 trading days on a free key) ----------
+function chartFresh(c) {
+  if (!c || !c.points || !c.points.length) return false;
+  return Date.now() - num(c.at) < DAY_MS;
+}
+async function fetchChart(ticker) {
+  const key = (state.settings.alphaVantageKey || '').trim();
+  if (!key) throw new Error('Add a free Alpha Vantage key in Settings for price history');
+  const d = await getJson('av', 'https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&outputsize=compact&symbol=' + encodeURIComponent(ticker) + '&apikey=' + encodeURIComponent(key));
+  const ts = d && d['Time Series (Daily)'];
+  if (!ts) {
+    if (d && (d.Information || d.Note)) { const e = new Error('Alpha Vantage limit reached for today'); e.limit = true; throw e; }
+    throw new Error('No price history for ' + ticker);
+  }
+  const points = Object.keys(ts).sort().map(day => [day, Number(ts[day]['4. close'])]).filter(x => x[1] > 0);
+  state.cache.chart[ticker] = { at: Date.now(), points };
+  trimCache('chart', 40);
+  saveSoon();
+  return points;
+}
+
+// ---------- Earnings and news (Finnhub, free) ----------
+async function fetchEarnings(ticker) {
+  const key = (state.settings.finnhubKey || '').trim();
+  if (!key) return null;
+  const from = todayStr(), to = addDays(from, 120);
+  const d = await getJson('finnhub', 'https://finnhub.io/api/v1/calendar/earnings?from=' + from + '&to=' + to + '&symbol=' + encodeURIComponent(ticker) + '&token=' + encodeURIComponent(key));
+  const list = (d && d.earningsCalendar) || [];
+  list.sort((a, b) => a.date < b.date ? -1 : 1);
+  const next = list[0] || null;
+  state.cache.earn[ticker] = { at: Date.now(), next: next ? { date: next.date, hour: next.hour || '', epsEstimate: next.epsEstimate, quarter: next.quarter, year: next.year } : null };
+  trimCache('earn', 80);
+  saveSoon();
+  return state.cache.earn[ticker];
+}
+async function fetchNews(ticker) {
+  const key = (state.settings.finnhubKey || '').trim();
+  if (!key) return null;
+  const to = todayStr(), from = addDays(to, -7);
+  const d = await getJson('finnhub', 'https://finnhub.io/api/v1/company-news?symbol=' + encodeURIComponent(ticker) + '&from=' + from + '&to=' + to + '&token=' + encodeURIComponent(key));
+  const items = (Array.isArray(d) ? d : []).slice(0, 6).map(n => ({ h: String(n.headline || '').slice(0, 220), s: n.source || '', t: num(n.datetime) * 1000, u: /^https?:\/\//.test(n.url || '') ? n.url : '' }));
+  state.cache.news[ticker] = { at: Date.now(), items };
+  trimCache('news', 40);
+  saveSoon();
+  return state.cache.news[ticker];
+}
+function trimCache(kind, max) {
+  const c = state.cache[kind];
+  const keys = Object.keys(c);
+  if (keys.length <= max) return;
+  keys.sort((a, b) => num(c[a].at) - num(c[b].at)).slice(0, keys.length - max).forEach(k => delete c[k]);
+}
+
+// ---------- ETF holdings (Alpha Vantage) ----------
+async function fetchAlphaVantageEtf(ticker) {
+  const key = (state.settings.alphaVantageKey || '').trim();
+  if (!key) { toast('Add a free Alpha Vantage key in Settings, or paste holdings by hand'); return false; }
+  try {
+    const data = await getJson('av', 'https://www.alphavantage.co/query?function=ETF_PROFILE&symbol=' + encodeURIComponent(ticker) + '&apikey=' + encodeURIComponent(key));
+    if (!data || !Array.isArray(data.holdings)) {
+      toast(data && (data.Information || data.Note) ? 'Alpha Vantage limit reached for today' : 'No ETF holdings found for ' + ticker);
+      return false;
+    }
+    const er = data.net_expense_ratio != null ? Number(data.net_expense_ratio) * 100 : null;
+    const holdings = data.holdings.filter(h => h.symbol && h.symbol !== 'n/a').slice(0, 30)
+      .map(h => ({ symbol: h.symbol.toUpperCase(), weight: Number(h.weight) * 100 }));
+    state.etfCache[ticker] = { expenseRatio: er != null ? Number(er.toFixed(3)) : null, holdings, updatedAt: todayStr() };
+    state.positions.forEach(p => { if (p.ticker === ticker && p.isEtf && p.expenseRatio == null && er != null) p.expenseRatio = Number(er.toFixed(3)); });
+    await saveState();
+    toast('Saved ' + holdings.length + ' holdings for ' + ticker);
+    return true;
+  } catch (e) {
+    toast(e.limit ? e.message : 'Could not get holdings for ' + ticker);
+    return false;
+  }
+}
+async function refreshAllEtfHoldings(etfs) {
+  const unique = Array.from(new Set(etfs.map(e => e.ticker))).filter(t => !isCusip(t));
+  if (!unique.length) return;
+  if (!state.settings.alphaVantageKey) { toast('Add a free Alpha Vantage key in Settings to get ETF holdings'); return; }
+  const left = AV_DAILY_FREE - apiDay().av;
+  if (unique.length > left) toast('Only ' + Math.max(0, left) + ' Alpha Vantage calls left today, so not every ETF will update');
+  for (const tk of unique) {
+    if (!canCall('av')) break;
+    await fetchAlphaVantageEtf(tk);
+    await new Promise(r => setTimeout(r, 13000)); // 5 a minute on a free key
+  }
+  render();
+}
+
+/* ---- 20-import.js ---- */
+/* Fidelity Positions CSV import. Smart merge: shares, cost and prices update; thesis, exit notes and decision logs are never touched.
+   0.1: core cash and pending activity become each account's cash, option rows become its open options value, and rows
+   without a quantity (some work plan funds) come in by their Current value, so the total matches Fidelity's. */
+
+function parseCSV(text) {
+  const rows = [];
+  let row = [], cur = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"' && text[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') inQ = false;
+      else cur += ch;
+    } else if (ch === '"') inQ = true;
+    else if (ch === ',') { row.push(cur.trim()); cur = ''; }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && text[i + 1] === '\n') i++;
+      row.push(cur.trim());
+      if (row.some(c => c !== '')) rows.push(row);
+      row = []; cur = '';
+    } else cur += ch;
+  }
+  if (cur.length || row.length) { row.push(cur.trim()); if (row.some(c => c !== '')) rows.push(row); }
+  return rows;
+}
+function cleanNum(s) {
+  if (s == null) return NaN;
+  const t = String(s).trim();
+  if (!t || t === '--' || t === 'n/a') return NaN;
+  return parseFloat(t.replace(/[$,%\s+]/g, ''));
+}
+function isOptionSymbol(sym) { return /^-?\s*[A-Z]{1,6}\d{6}[CP][\d.]+$/i.test(String(sym).trim()); }
+function isCashSymbol(sym, desc) {
+  return /\*\*$/.test(sym) || /^pending activity$/i.test(sym) || /^(spaxx|fdrxx|fcash|core|spaxx\*\*)$/i.test(sym) || /money market|deposit sweep/i.test(desc || '');
+}
+
+function parseFidelityPositions(csvText) {
+  const rows = parseCSV(csvText.replace(/^﻿/, ''));
+  if (rows.length < 2) return { error: 'This file looks empty.' };
+  const headIdx = rows.findIndex(r => r.some(c => /^symbol$/i.test(c)) && r.some(c => /quantity|shares/i.test(c)));
+  if (headIdx < 0) return { error: 'Could not find the Symbol and Quantity columns. In Fidelity: Positions, then Download.' };
+  const headers = rows[headIdx].map(h => h.toLowerCase().trim());
+  const col = re => headers.findIndex(h => re.test(h));
+  const iAcct = col(/account name/), iAcctNum = col(/account number/), iSym = col(/^symbol$/), iDesc = col(/description/);
+  const iQty = col(/^quantity$|^shares$/), iPrice = col(/last price$/), iChg = col(/last price change/), iVal = col(/current value/);
+  const iAvg = col(/average cost basis|cost basis per share/), iCostTot = col(/cost basis total/);
+
+  const items = [], cash = {}, options = {}, optionRows = [], accounts = new Set();
+  let skipped = 0, fidelityTotal = 0;
+  for (let i = headIdx + 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.length < 4) { skipped++; continue; }
+    const acct = (iAcct >= 0 && r[iAcct]) ? r[iAcct].trim() : ((iAcctNum >= 0 && r[iAcctNum]) ? r[iAcctNum].trim() : '');
+    const rawSym = (r[iSym] || '').trim();
+    if (!acct || !rawSym || rawSym.length > 24) { skipped++; continue; }
+    const desc = iDesc >= 0 ? (r[iDesc] || '').trim() : '';
+    const value = iVal >= 0 ? cleanNum(r[iVal]) : NaN;
+    accounts.add(acct);
+    if (!isNaN(value)) fidelityTotal += value;
+
+    if (isCashSymbol(rawSym, desc)) {
+      if (!isNaN(value)) cash[acct] = (cash[acct] || 0) + value;
+      continue;
+    }
+    if (isOptionSymbol(rawSym)) {
+      const v = isNaN(value) ? 0 : value;
+      options[acct] = (options[acct] || 0) + v;
+      optionRows.push({ account: acct, symbol: rawSym.replace(/\s+/g, ''), desc, qty: cleanNum(r[iQty]) || 0, value: v, cost: iCostTot >= 0 ? (cleanNum(r[iCostTot]) || 0) : 0 });
+      continue;
+    }
+    const sym = rawSym.toUpperCase();
+    const qty = cleanNum(r[iQty]);
+    const price = iPrice >= 0 ? cleanNum(r[iPrice]) : NaN;
+    const chg = iChg >= 0 ? cleanNum(r[iChg]) : NaN;
+    const costTot = iCostTot >= 0 ? cleanNum(r[iCostTot]) : NaN;
+    let avg = iAvg >= 0 ? cleanNum(r[iAvg]) : NaN;
+    const isEtf = KNOWN_ETFS.has(sym) || isCusip(sym) || /\b(ETF|ETFS|INDEX|FUND|ISHARES|VANGUARD|SPDR|INVESCO|SCHWAB|TRUST|TR)\b/i.test(desc);
+
+    if (isNaN(qty) || qty <= 0 || isNaN(price)) {
+      // No quantity or price (some work plan funds): bring it in by its Current value.
+      if (isNaN(value) || value === 0) { skipped++; continue; }
+      items.push({ ticker: sym, name: desc, account: acct, shares: 0, avgCost: 0, currentPrice: 0, valueOnly: value, costTotal: isNaN(costTot) ? null : costTot, isEtf, dayChange: null });
+      continue;
+    }
+    if (isNaN(avg) && !isNaN(costTot) && qty > 0) avg = costTot / qty;
+    if (isNaN(avg)) avg = price;
+    items.push({ ticker: sym, name: desc, account: acct, shares: qty, avgCost: Number(avg.toFixed(4)), currentPrice: price, fidValue: isNaN(value) ? null : value, isEtf, dayChange: isNaN(chg) ? null : chg, dayPct: isNaN(chg) || !(price - chg) ? null : (chg / (price - chg)) * 100 });
+  }
+  return { items, cash, options, optionRows, accounts: Array.from(accounts), skipped, fidelityTotal };
+}
+
+function newPosition(it) {
+  return {
+    id: uid(), ticker: it.ticker, name: it.name, account: it.account,
+    shares: it.shares, avgCost: it.avgCost, currentPrice: it.currentPrice,
+    fidValue: it.fidValue != null ? it.fidValue : null, fidPrice: it.currentPrice,
+    valueOnly: it.valueOnly || null, costTotal: it.costTotal != null ? it.costTotal : null,
+    dayChange: it.dayChange, dayPct: it.dayPct, quoteAt: Date.now(),
+    sector: '', tags: [], isEtf: it.isEtf, expenseRatio: null,
+    thesis: [], exitStrategy: '', targetPrice: null, stopPrice: null,
+    decisionLog: [{ id: uid(), date: todayStr(), note: it.valueOnly ? 'Imported from CSV: value ' + fmtMoney(it.valueOnly) : 'Imported from CSV: ' + it.shares + ' shares @ ' + fmtMoney(it.avgCost) }],
+    lastReviewed: todayStr(), manualStatus: null, netOptionPremium: 0
+  };
+}
+
+/* What an import would do, without changing anything. */
+function planImport(res) {
+  const key = p => p.ticker + '|' + p.account;
+  const incoming = new Map(res.items.map(it => [key(it), it]));
+  const update = [], add = [];
+  res.items.forEach(it => { (state.positions.some(p => key(p) === key(it)) ? update : add).push(it); });
+  const gone = state.positions.filter(p => res.accounts.includes(p.account) && !incoming.has(key(p)));
+  return { update, add, gone };
+}
+
+function applyImport(res, closeGone) {
+  const plan = planImport(res);
+  const key = p => p.ticker + '|' + p.account;
+  res.items.forEach(it => {
+    const match = state.positions.find(p => key(p) === key(it));
+    if (!match) { state.positions.push(newPosition(it)); return; }
+    match.shares = it.shares;
+    match.avgCost = it.avgCost;
+    match.currentPrice = it.currentPrice;
+    match.fidValue = it.fidValue != null ? it.fidValue : null;
+    match.fidPrice = it.currentPrice;
+    match.valueOnly = it.valueOnly || null;
+    match.costTotal = it.costTotal != null ? it.costTotal : null;
+    if (it.dayChange != null) { match.dayChange = it.dayChange; match.dayPct = it.dayPct; }
+    match.quoteAt = Date.now();
+    if (!match.name && it.name) match.name = it.name;
+  });
+  if (closeGone) {
+    plan.gone.forEach(p => {
+      state.closed.unshift({ id: uid(), ticker: p.ticker, name: p.name, account: p.account, shares: num(p.shares), avgCost: num(p.avgCost), sellPrice: posPrice(p), closeDate: todayStr(), lesson: 'No longer in the Fidelity download on ' + todayStr() + ' (price is the last one known).' });
+    });
+    const goneIds = new Set(plan.gone.map(p => p.id));
+    state.positions = state.positions.filter(p => !goneIds.has(p.id));
+  }
+  // Cash and options: the accounts in this file get their new values; other accounts keep theirs.
+  res.accounts.forEach(a => {
+    state.cashByAccount[a] = Math.round((res.cash[a] || 0) * 100) / 100;
+    state.openOptionsByAccount[a] = Math.round((res.options[a] || 0) * 100) / 100;
+  });
+  state.openOptions = (state.openOptions || []).filter(o => !res.accounts.includes(o.account)).concat(res.optionRows);
+  state.lastImport = Date.now();
+  state.remindSnooze = '';
+  takeSnapshot();
+  return { updated: plan.update.length, added: plan.add.length, closed: closeGone ? plan.gone.length : 0 };
+}
+
+function openImportModal() {
+  let parsed = null;
+  openModal('Import Fidelity Positions CSV', `
+      <div class="sub">Updates shares, cost, prices, cash and open options. Your thesis, exit notes and decision logs are never touched.</div>
+      <div id="dropZone" class="drop-zone" tabindex="0">
+        <div style="font-weight:600;margin-bottom:4px;">Drop the Fidelity CSV here or click to choose it</div>
+        <div class="sub" style="font-size:calc(12px * var(--fs));">In Fidelity: Positions, then Download (All accounts)</div>
+        <input id="csvFile" type="file" accept=".csv,text/csv" style="display:none;" />
+      </div>
+      <div id="importPreview"></div>`,
+    `<button id="mCancel" class="quiet">Cancel</button><button id="mRunImport" class="primary" disabled>Import</button>`);
+  const dz = mBody.querySelector('#dropZone'), fi = mBody.querySelector('#csvFile'), prev = mBody.querySelector('#importPreview'), runBtn = mFoot.querySelector('#mRunImport');
+
+  const handleText = text => {
+    const res = parseFidelityPositions(text);
+    if (res.error) { prev.innerHTML = '<span class="error">' + esc(res.error) + '</span>'; runBtn.disabled = true; return; }
+    parsed = res;
+    const plan = planImport(res);
+    const cashTot = Object.values(res.cash).reduce((s, v) => s + v, 0);
+    const optTot = Object.values(res.options).reduce((s, v) => s + v, 0);
+    prev.innerHTML = `
+      <div class="preview-list">
+        <div class="row"><span>Positions to update</span><b>${plan.update.length}</b></div>
+        <div class="row"><span>New positions</span><b>${plan.add.length}</b></div>
+        <div class="row"><span>Cash (core funds and pending)</span><b>${fmtMoney(cashTot)}</b></div>
+        <div class="row"><span>Open options</span><b>${fmtMoney(optTot)}</b></div>
+        <div class="row"><span>Fidelity total in this file</span><b>${fmtMoney(res.fidelityTotal)}</b></div>
+      </div>
+      ${plan.gone.length ? `<label class="check-row" style="margin-top:8px;"><input id="closeGone" type="checkbox" checked>
+        <span>Move ${plan.gone.length} position(s) no longer at Fidelity to Closed: ${esc(plan.gone.map(p => p.ticker + ' (' + p.account + ')').join(', '))}</span></label>` : ''}`;
+    runBtn.disabled = false;
+  };
+  const readFile = file => { if (!file) return; const r = new FileReader(); r.onload = () => handleText(String(r.result || '')); r.readAsText(file); };
+  dz.onclick = () => fi.click();
+  dz.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fi.click(); } };
+  fi.onchange = () => readFile(fi.files[0]);
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('dragover'); };
+  dz.ondragleave = () => dz.classList.remove('dragover');
+  dz.ondrop = e => { e.preventDefault(); dz.classList.remove('dragover'); readFile(e.dataTransfer.files[0]); };
+  mFoot.querySelector('#mCancel').onclick = closeModal;
+  runBtn.onclick = async () => {
+    if (!parsed) return;
+    const cg = mBody.querySelector('#closeGone');
+    const r = applyImport(parsed, cg ? cg.checked : false);
+    await saveState();
+    closeModal();
+    toast('Imported: ' + r.updated + ' updated, ' + r.added + ' added' + (r.closed ? ', ' + r.closed + ' moved to Closed' : ''));
+    render();
+  };
+  // For tests and drag-from-desktop on the whole page.
+  window.__shImportText = handleText;
+}
+
+/* ---- 30-charts.js ---- */
+/* Small SVG charts drawn by hand (no outside libraries): a line chart with hover, reference lines and dots, and a donut. */
+
+const PALETTE = [
+  'var(--accent)', 'var(--ok)', 'var(--soon)', 'var(--late)',
+  'color-mix(in srgb, var(--accent) 50%, var(--fg))', 'color-mix(in srgb, var(--ok) 50%, var(--fg))',
+  'color-mix(in srgb, var(--soon) 50%, var(--fg))', 'color-mix(in srgb, var(--late) 50%, var(--fg))',
+  'color-mix(in srgb, var(--accent) 45%, var(--bg))', 'var(--muted)'
+];
+const SVGNS = 'http://www.w3.org/2000/svg';
+const tipEl = () => document.getElementById('chartTip');
+function showTip(text, x, y) {
+  const t = tipEl(); t.textContent = text; t.hidden = false;
+  const w = t.offsetWidth;
+  t.style.left = Math.min(window.innerWidth - w - 8, Math.max(8, x + 12)) + 'px';
+  t.style.top = Math.max(8, y - 34) + 'px';
+}
+function hideTip() { tipEl().hidden = true; }
+
+function niceTicks(min, max, count) {
+  if (min === max) { min -= 1; max += 1; }
+  const span = max - min, step0 = span / count, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= step0) || step0;
+  const out = [];
+  for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(Number(v.toFixed(10)));
+  return out;
+}
+function shortDate(d) { const [, m, day] = d.split('-'); return Number(m) + '/' + Number(day); }
+function moneyAxis(v) {
+  const a = Math.abs(v);
+  if (a >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+  if (a >= 1e4) return '$' + Math.round(v / 1e3) + 'k';
+  if (a >= 1000) return '$' + (v / 1e3).toFixed(1) + 'k';
+  if (v === 0) return '$0';
+  return '$' + (a >= 100 ? Math.round(v) : v.toFixed(2));
+}
+
+/* series: [{ name, color, points: [[date, value]] }]; refs: [{ value, label, cls }]; dots: [{ date, label }] */
+function lineChart(box, opts) {
+  const series = (opts.series || []).filter(s => s.points && s.points.length);
+  box.innerHTML = '';
+  if (!series.length || series.every(s => s.points.length < 2)) {
+    box.innerHTML = '<div class="chart-empty">' + esc(opts.empty || 'Not enough data yet.') + '</div>';
+    return;
+  }
+  const W = Math.max(320, box.clientWidth || 600), H = opts.height || 210, padL = 54, padR = opts.refs && opts.refs.length ? 74 : 14, padT = 12, padB = 24;
+  const dates = Array.from(new Set(series.flatMap(s => s.points.map(p => p[0])))).sort();
+  const xi = new Map(dates.map((d, i) => [d, i]));
+  let lo = Infinity, hi = -Infinity;
+  series.forEach(s => s.points.forEach(p => { lo = Math.min(lo, p[1]); hi = Math.max(hi, p[1]); }));
+  (opts.refs || []).forEach(r => { if (r.value > 0 && r.fit !== false) { lo = Math.min(lo, r.value); hi = Math.max(hi, r.value); } });
+  const pad = (hi - lo) * 0.08 || Math.abs(hi) * 0.05 || 1;
+  lo -= pad; hi += pad;
+  const X = i => padL + (dates.length < 2 ? 0 : (i / (dates.length - 1)) * (W - padL - padR));
+  const Y = v => padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB);
+  const fmtV = opts.format || moneyAxis;
+  let s = '';
+  niceTicks(lo, hi, 5).forEach(t => { s += `<line class="grid" x1="${padL}" x2="${W - padR}" y1="${Y(t)}" y2="${Y(t)}"/><text class="ax" x="${padL - 6}" y="${Y(t) + 3.5}" text-anchor="end">${esc(fmtV(t))}</text>`; });
+  const nLab = Math.min(6, dates.length);
+  for (let k = 0; k < nLab; k++) {
+    const i = Math.round(k * (dates.length - 1) / Math.max(1, nLab - 1));
+    s += `<text class="ax" x="${X(i)}" y="${H - 6}" text-anchor="${k === 0 ? 'start' : k === nLab - 1 ? 'end' : 'middle'}">${esc(shortDate(dates[i]))}</text>`;
+  }
+  (opts.refs || []).forEach(r => {
+    if (!(r.value > lo && r.value < hi)) return;
+    s += `<line class="ref ${r.cls}" x1="${padL}" x2="${W - padR}" y1="${Y(r.value)}" y2="${Y(r.value)}"/><text class="ref-label" x="${W - padR + 4}" y="${Y(r.value) + 3.5}" style="fill:${r.color || 'var(--muted)'}">${esc(r.label)}</text>`;
+  });
+  series.forEach((ser, n) => {
+    const pts = ser.points.map(p => [X(xi.get(p[0])), Y(p[1])]);
+    const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    const color = ser.color || PALETTE[n % PALETTE.length];
+    if (series.length === 1 && opts.area !== false) s += `<path class="area" style="fill:${color}" d="${d} L${pts[pts.length - 1][0].toFixed(1)} ${H - padB} L${pts[0][0].toFixed(1)} ${H - padB} Z"/>`;
+    s += `<path class="line" style="stroke:${color}" d="${d}"/>`;
+  });
+  const main = series[0];
+  const mainMap = new Map(main.points);
+  (opts.dots || []).forEach(dt => {
+    const day = dates.find(d => d >= dt.date);
+    if (!day || !mainMap.has(day) || dt.date < dates[0]) return;
+    s += `<circle class="dot" cx="${X(xi.get(day))}" cy="${Y(mainMap.get(day))}" r="4.5" data-tip="${esc(dt.date + ': ' + dt.label)}"/>`;
+  });
+  s += `<line class="cross" x1="0" x2="0" y1="${padT}" y2="${H - padB}" visibility="hidden"/><circle class="hover-dot" r="4" visibility="hidden"/>`;
+  box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.label || 'Chart')}">${s}</svg>`;
+  const svg = box.querySelector('svg'), cross = svg.querySelector('.cross'), hd = svg.querySelector('.hover-dot');
+  svg.addEventListener('pointermove', e => {
+    const dot = e.target.closest && e.target.closest('.dot');
+    if (dot) { showTip(dot.dataset.tip, e.clientX, e.clientY); cross.setAttribute('visibility', 'hidden'); hd.setAttribute('visibility', 'hidden'); return; }
+    const r = svg.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (W / r.width);
+    const i = Math.max(0, Math.min(dates.length - 1, Math.round((x - padL) / ((W - padL - padR) / Math.max(1, dates.length - 1)))));
+    const day = dates[i];
+    cross.setAttribute('x1', X(i)); cross.setAttribute('x2', X(i)); cross.setAttribute('visibility', 'visible');
+    if (mainMap.has(day)) { hd.setAttribute('cx', X(i)); hd.setAttribute('cy', Y(mainMap.get(day))); hd.setAttribute('visibility', 'visible'); }
+    const parts = series.map(ser => { const m = ser.points.find(p => p[0] === day); return m ? (series.length > 1 ? ser.name + ' ' : '') + (opts.tipFormat || fmtMoney)(m[1]) : null; }).filter(Boolean);
+    showTip(day + '  ' + parts.join('  '), e.clientX, e.clientY);
+  });
+  svg.addEventListener('pointerleave', () => { hideTip(); cross.setAttribute('visibility', 'hidden'); hd.setAttribute('visibility', 'hidden'); });
+}
+
+/* items: [{ label, val }] sorted big to small; the rest fold into "Other" after max. */
+function donut(box, items, opts) {
+  opts = opts || {};
+  const max = opts.max || 7;
+  let list = items.filter(x => x.val > 0);
+  if (list.length > max) {
+    const rest = list.slice(max - 1).reduce((s, x) => s + x.val, 0);
+    list = list.slice(0, max - 1).concat([{ label: 'Other', val: rest }]);
+  }
+  const total = list.reduce((s, x) => s + x.val, 0);
+  if (!total) { box.innerHTML = '<div class="chart-empty">No data yet.</div>'; return; }
+  const R = 52, r = 32, C = 60;
+  let a0 = -Math.PI / 2, paths = '';
+  list.forEach((x, i) => {
+    const frac = x.val / total, a1 = a0 + frac * Math.PI * 2, large = frac > 0.5 ? 1 : 0;
+    const p = (a, rad) => (C + rad * Math.cos(a)).toFixed(2) + ' ' + (C + rad * Math.sin(a)).toFixed(2);
+    const col = PALETTE[i % PALETTE.length];
+    const tip = x.label + ': ' + fmtMoneyShort(x.val) + ' (' + (frac * 100).toFixed(1) + '%)';
+    if (frac >= 0.9999) paths += `<circle cx="${C}" cy="${C}" r="${(R + r) / 2}" fill="none" stroke-width="${R - r}" style="stroke:${col}" data-tip="${esc(tip)}"/>`;
+    else paths += `<path d="M${p(a0, R)} A${R} ${R} 0 ${large} 1 ${p(a1, R)} L${p(a1, r)} A${r} ${r} 0 ${large} 0 ${p(a0, r)} Z" style="fill:${col}" data-tip="${esc(tip)}"/>`;
+    a0 = a1;
+  });
+  const center = opts.center ? `<text x="${C}" y="${C + 4}" text-anchor="middle" style="font-family:var(--mono);font-size:10px;font-weight:700;fill:var(--fg)">${esc(opts.center)}</text>` : '';
+  box.innerHTML = `<div class="donut-wrap"><svg viewBox="0 0 120 120">${paths}${center}</svg><div class="donut-list">${list.map((x, i) =>
+    `<div class="row" data-label="${esc(x.label)}"><i style="background:${PALETTE[i % PALETTE.length]}"></i><span class="lbl" title="${esc(x.label)}">${esc(x.label)}</span><span class="pct">${(x.val / total * 100).toFixed(1)}%</span></div>`).join('')}</div></div>`;
+  box.querySelectorAll('[data-tip]').forEach(el => {
+    el.addEventListener('pointermove', e => showTip(el.dataset.tip, e.clientX, e.clientY));
+    el.addEventListener('pointerleave', hideTip);
+  });
+  if (opts.onPick) box.querySelectorAll('.donut-list .row').forEach(row => { row.style.cursor = 'pointer'; row.onclick = () => opts.onPick(row.dataset.label); });
+}
+
+/* ---- 35-shell.js ---- */
+/* The frame around every view: tabs in Tome's bar, the account strip with totals, and the import reminder. */
+
+function updateTopBar() {
+  const pills = [
+    { id: 'positions', label: 'Positions', count: getFilteredPositions({ onlyStocks: true }).length, title: 'Individual stock positions' },
+    { id: 'etfs', label: 'ETFs', count: getFilteredPositions({ onlyEtfs: true }).length, title: 'ETFs and funds, overlap, and look-through' },
+    { id: 'overview', label: 'Overview', title: 'Value over time, allocation, movers, net worth' },
+    { id: 'watchlist', label: 'Watchlist', count: state.watchlist.length, title: 'Stocks you are watching' },
+    { id: 'closed', label: 'Closed', count: state.closed.length, title: 'Closed positions and lessons' },
+    { id: 'options', label: 'Options', count: (state.openOptions || []).filter(o => inAccount(o.account)).length || null, title: 'Open options from your last import' }
+  ].map(p => Object.assign(p, { on: ui.view === p.id }));
+  if (hasBar) {
+    tome.bar.set(pills);
+    document.getElementById('fallbackNav').classList.remove('show');
+    return;
+  }
+  const nav = document.getElementById('fallbackNav');
+  nav.classList.add('show');
+  nav.innerHTML = pills.map(p => `<button class="pill ${p.on ? 'on' : ''}" data-view="${p.id}" title="${esc(p.title)}">${esc(p.label)}${p.count != null ? ' (' + p.count + ')' : ''}</button>`).join('');
+  nav.querySelectorAll('button').forEach(b => { b.onclick = () => { ui.view = b.dataset.view; render(); }; });
+}
+
+function shortAcct(a) {
+  return String(a).replace(/\s*CORPORATION\s*/i, ' ').replace(/\bPLAN\b/i, '').replace(/HEALTH SAVINGS ACCOUNT/i, 'HSA').replace(/\s+/g, ' ').trim();
+}
+
+function renderSummaryBar() {
+  const accounts = getAccounts();
+  if (ui.account !== 'ALL' && !accounts.includes(ui.account)) ui.account = 'ALL';
+  const acctEl = document.getElementById('accountTabs');
+  const all = allTotals();
+  const btn = (id, label, val, title) => `<button class="pill ${ui.account === id ? 'on' : ''}" data-acct="${esc(id)}" title="${esc(title)}">${esc(label)}<span class="acct-val">${fmtMoneyShort(val)}</span></button>`;
+  acctEl.innerHTML = btn('ALL', 'All', all.total, 'All accounts') + accounts.map(a => btn(a, shortAcct(a), accountTotal(a), a + ' (' + kindLabel(accountKind(a)) + '). Right-click for more')).join('');
+  acctEl.querySelectorAll('button').forEach(b => {
+    b.onclick = () => { ui.account = b.dataset.acct; render(); };
+    if (b.dataset.acct !== 'ALL') b.oncontextmenu = ev => accountMenu(ev, b.dataset.acct);
+  });
+
+  const t = getPortfolioTotals(ui.view === 'etfs');
+  const m = [];
+  m.push(`<div class="metric-item" title="Holdings plus cash plus open options. Matches Fidelity's total for the same accounts."><span class="sub">Total</span><span class="metric-val">${fmtMoneyShort(t.total)}</span></div>`);
+  m.push(`<div class="metric-item" title="Gain or loss on what you hold, against your cost"><span class="sub">P&amp;L</span><span class="metric-val ${cls(t.pnl)}">${fmtSigned(t.pnl, true)} (${fmtPct(t.pnlPct, true)})</span></div>`);
+  if (t.dayKnown) m.push(`<div class="metric-item" title="Change today, from the latest prices"><span class="sub">Today</span><span class="metric-val ${cls(t.day)}">${fmtSigned(t.day, true)} (${fmtPct(t.dayPct, true)})</span></div>`);
+  if (Math.abs(t.cash) >= 0.5) m.push(`<span class="mini-pill" title="Core cash and pending activity">Cash <b>${fmtMoneyShort(t.cash)}</b></span>`);
+  if (Math.abs(t.options) >= 0.5) m.push(`<span class="mini-pill click" data-go="options" title="Open options value. Click for the list">Options <b>${fmtMoneyShort(t.options)}</b></span>`);
+  if (ui.account === 'ALL' && state.settings.netWorthInBar && (state.manualAssets || []).length) m.push(`<span class="mini-pill click" data-go="overview" title="Fidelity total plus your manual assets, minus what's owed on them">Net worth <b>${fmtMoneyShort(t.netWorth)}</b></span>`);
+  m.push(`<div class="core-sat" title="ETFs and funds against individual stocks"><div class="core-sat-labels"><span>ETFs ${t.etfPct.toFixed(0)}%</span><span>Stocks ${t.stkPct.toFixed(0)}%</span></div><div class="split-track"><div class="split-etf" style="width:${t.etfPct}%"></div><div class="split-stk" style="width:${t.stkPct}%"></div></div></div>`);
+  const met = document.getElementById('metrics');
+  met.innerHTML = m.join('');
+  met.querySelectorAll('[data-go]').forEach(el => { el.onclick = () => { ui.view = el.dataset.go; render(); }; });
+
+  const refBtn = document.getElementById('btnRefresh');
+  refBtn.textContent = ui.refreshing ? 'Refreshing ' + ui.refreshDone + '/' + ui.refreshTotal : 'Refresh';
+  refBtn.title = ui.refreshing ? 'Click to stop' : (state.lastQuoteRefresh ? 'Prices last refreshed ' + new Date(state.lastQuoteRefresh).toLocaleString() : 'Refresh prices');
+}
+
+function accountMenu(ev, a) {
+  const kind = accountKind(a);
+  showMenu(ev, [
+    { label: 'Show only ' + shortAcct(a), action: () => { ui.account = a; render(); } },
+    { label: 'Account type', items: ACCOUNT_KINDS.map(k => ({ label: (k.id === kind ? '✓ ' : '') + k.label, action: () => { state.accountKinds[a] = k.id; saveState(); toast(shortAcct(a) + ' is now ' + k.label); render(); } })) },
+    { label: 'Copy total (' + fmtMoney(accountTotal(a)) + ')', action: () => { if (hasTome && tome.copy) tome.copy(accountTotal(a).toFixed(2)); toast('Copied'); } }
+  ]);
+}
+
+function renderRemindBar() {
+  const bar = document.getElementById('remindBar');
+  const days = num(state.settings.importRemindDays);
+  const since = state.lastImport ? daysSince(state.lastImport) : null;
+  const due = days > 0 && (state.positions.length || state.lastImport) && (since == null || since >= days) && state.remindSnooze !== todayStr();
+  bar.hidden = !due;
+  if (!due) return;
+  bar.innerHTML = `<span class="grow">${since == null ? 'No Fidelity import yet in this version: import one so cash and options are counted.' : 'Your last Fidelity import was ' + since + ' days ago. Shares and cash may be out of date.'}</span>
+    <button class="primary" id="remindImport">Import CSV</button><button class="quiet" id="remindLater">Tomorrow</button>`;
+  bar.querySelector('#remindImport').onclick = openImportModal;
+  bar.querySelector('#remindLater').onclick = () => { state.remindSnooze = todayStr(); saveState(); renderRemindBar(); };
+}
+
+function render() {
+  hideTip();
+  sizeAttr();
+  updateTopBar();
+  renderRemindBar();
+  renderSummaryBar();
+  const ws = document.getElementById('workspace');
+  const keepScroll = ws.querySelector('.pane-right, .pane-full');
+  const top = keepScroll ? keepScroll.scrollTop : 0;
+  const listScroll = ws.querySelector('.scroll-list');
+  const listTop = listScroll ? listScroll.scrollTop : 0;
+  ws.innerHTML = '';
+  const v = ui.view;
+  if (v === 'positions') renderPositionsView(ws);
+  else if (v === 'etfs') renderEtfsView(ws);
+  else if (v === 'overview') renderOverviewView(ws);
+  else if (v === 'watchlist') renderWatchlistView(ws);
+  else if (v === 'closed') renderClosedView(ws);
+  else if (v === 'options') renderOptionsView(ws);
+  if (render.sameView === v) {
+    const a = ws.querySelector('.pane-right, .pane-full'); if (a) a.scrollTop = top;
+    const b = ws.querySelector('.scroll-list'); if (b) b.scrollTop = listTop;
+  }
+  render.sameView = v;
+}
+
+/* ---- 40-positions.js ---- */
+/* Positions view: the list of stocks on the left, one stock's full picture on the right. */
+
+/* The position as it is now in state (state is replaced when another PC's changes arrive). */
+function livePos(p) { return state.positions.find(x => x.id === p.id) || p; }
+
+const loading = new Set();   // "chart:NVDA", "earn:NVDA", "news:NVDA" while a call is out
+const loadErr = {};
+
+function posCardHtml(p, totals, opts) {
+  const val = posValue(p), pnl = posPnl(p), pct = posPnlPct(p);
+  const wt = weightOf(p, totals);
+  const st = getThesisStatus(p);
+  const over = wt > (num(state.settings.maxStockPct) || 10);
+  const day = p.dayChange != null && !p.valueOnly ? posDay(p) : null;
+  return `
+    <div class="pos-row">
+      <div class="pos-ticker-wrap">
+        ${opts && opts.check ? `<input type="checkbox" ${opts.excluded ? '' : 'checked'} title="Include in the what-if preview" />` : ''}
+        <span class="pos-ticker">${esc(p.ticker)}</span>
+        <span class="pos-weight" title="Share of ${state.settings.weightBase === 'total' ? 'the total including cash' : 'what you have invested'}">${opts && opts.excluded ? 'Excluded' : wt.toFixed(1) + '%'}</span>
+      </div>
+      ${opts && opts.check ? `<span class="pos-day ${day != null ? cls(day) : 'sub'}">${day != null ? fmtSigned(day, true) + ' today' : ''}</span>` : `<span class="badge ${st}">${st}</span>`}
+    </div>
+    <div class="pos-name" title="${esc(p.name || '')}">${esc(p.name || '')}</div>
+    <div class="pos-row">
+      <span class="pos-value" title="Current value">${fmtMoney(val)}</span>
+      <span class="pos-pnl-line ${cls(pnl)}" title="Gain or loss against your cost of ${fmtMoney(posCost(p))}">${fmtSigned(pnl, true)} (${fmtPct(pct, true)})</span>
+    </div>
+    <div class="pos-row">
+      <span class="pos-acct">${esc(shortAcct(p.account || 'Main'))}${p.valueOnly ? '' : ' · ' + fmtShares(p.shares) + ' @ ' + fmtMoney(posPrice(p))}</span>
+      ${!(opts && opts.check) && day != null ? `<span class="pos-day ${cls(day)}" title="Change today">${fmtSigned(day, true)} (${fmtPct(p.dayPct, true)})</span>` : ''}
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div class="weight-track" style="flex:1;"><div class="weight-fill ${st === 'exit' && !(opts && opts.check) ? 'exit' : (over ? 'over' : '')}" style="width:${Math.min(100, wt * 4)}%"></div></div>
+      ${isStale(p) && !(opts && opts.check) ? '<span class="badge stale">Stale</span>' : ''}
+    </div>`;
+}
+
+function matchesSearch(p) {
+  const q = ui.search.trim().toLowerCase();
+  if (!q) return true;
+  return [p.ticker, p.name, p.account, p.sector, (p.tags || []).join(' ')].join(' ').toLowerCase().includes(q);
+}
+
+function renderPositionsView(ws) {
+  const totals = getPortfolioTotals(false);
+  const all = getFilteredPositions({ onlyStocks: true }).sort((a, b) => posValue(b) - posValue(a));
+  const filtered = all.filter(p => (ui.statusFilter === 'all' || getThesisStatus(p) === ui.statusFilter) && matchesSearch(p));
+  if (!filtered.some(p => p.id === ui.selectedId)) ui.selectedId = filtered.length ? filtered[0].id : null;
+
+  const left = document.createElement('div');
+  left.className = 'pane-left';
+  left.innerHTML = `
+    <div class="list-toolbar">
+      <div class="filter-pills">${['all', 'hold', 'watch', 'exit'].map(s => `<button class="pill ${ui.statusFilter === s ? 'on' : ''}" data-st="${s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join('')}</div>
+      <button id="btnAddStock" class="primary" style="padding:4px 10px;font-size:calc(12.5px * var(--fs));">+ Add</button>
+    </div>
+    <input id="posSearch" class="search" type="search" placeholder="Find a ticker, name or theme" value="${esc(ui.search)}" />
+    <div id="stockList" class="scroll-list"></div>
+    <div class="list-foot"><span>${filtered.length} of ${all.length}</span><span>${fmtMoneyShort(filtered.reduce((s, p) => s + posValue(p), 0))}</span></div>`;
+  ws.appendChild(left);
+  left.querySelectorAll('[data-st]').forEach(b => { b.onclick = () => { ui.statusFilter = b.dataset.st; render(); }; });
+  left.querySelector('#btnAddStock').onclick = () => openPositionModal(null, false);
+  const search = left.querySelector('#posSearch');
+  search.oninput = () => { ui.search = search.value; const pos = search.selectionStart; render(); const s = document.getElementById('posSearch'); s.focus(); s.setSelectionRange(pos, pos); };
+
+  const listEl = left.querySelector('#stockList');
+  if (!filtered.length) {
+    listEl.innerHTML = `<div class="tome-empty" style="padding:20px 10px;"><div style="margin-bottom:8px;">${all.length ? 'Nothing matches.' : 'No stock positions here yet.'}</div><div class="sub">Click + Add, Import CSV, or load sample data in Settings.</div></div>`;
+  } else {
+    filtered.forEach(p => {
+      const card = document.createElement('div');
+      card.className = 'pos-card' + (p.id === ui.selectedId ? ' selected' : '');
+      card.dataset.id = p.id;
+      card.innerHTML = posCardHtml(p, totals);
+      card.onclick = () => { ui.selectedId = p.id; ui.editingPriceId = null; render(); };
+      card.oncontextmenu = ev => openPositionContextMenu(ev, p);
+      listEl.appendChild(card);
+    });
+  }
+
+  const right = document.createElement('div');
+  right.className = 'pane-right';
+  ws.appendChild(right);
+  const sel = state.positions.find(p => p.id === ui.selectedId);
+  if (!sel) {
+    right.innerHTML = `<div class="placeholder-box"><div style="font-weight:700;font-size:calc(16px * var(--fs));">Select or add a position</div>
+      <div class="sub">Track your buy thesis, exit plan, and decision timeline for every stock.</div>
+      <div style="display:flex;gap:8px;margin-top:6px;"><button id="emptyAddBtn" class="primary">+ Add Stock</button><button id="emptyImportBtn" class="quiet">Import Fidelity CSV</button><button id="emptySampleBtn" class="quiet">Load Sample Data</button></div></div>`;
+    right.querySelector('#emptyAddBtn').onclick = () => openPositionModal(null, false);
+    right.querySelector('#emptyImportBtn').onclick = openImportModal;
+    right.querySelector('#emptySampleBtn').onclick = loadSampleData;
+    return;
+  }
+  renderPositionDetail(right, sel, totals);
+}
+
+function renderPositionDetail(container, p, totals) {
+  const val = posValue(p), pnl = posPnl(p), pct = posPnlPct(p);
+  const wt = weightOf(p, totals);
+  const st = getThesisStatus(p);
+  const over = wt > (num(state.settings.maxStockPct) || 10);
+  const stale = isStale(p), days = daysSince(p.lastReviewed);
+  const thesisItems = Array.isArray(p.thesis) ? p.thesis : [];
+  const netPrem = num(p.netOptionPremium);
+  const netBasis = num(p.shares) > 0 ? num(p.avgCost) - netPrem / num(p.shares) : 0;
+  const day = p.dayChange != null ? posDay(p) : null;
+
+  const head = document.createElement('div');
+  head.className = 'detail-header';
+  head.innerHTML = `
+    <div class="detail-title-row">
+      <div class="detail-title-left"><span class="detail-ticker">${esc(p.ticker)}</span><span class="detail-name">${esc(p.name || '')}</span></div>
+      <div class="detail-chips">
+        <span class="tome-chip" title="${esc(p.account || '')}">${esc(shortAcct(p.account || 'Main'))}</span>
+        ${p.sector ? `<span class="tome-chip">${esc(p.sector)}</span>` : ''}
+        <span id="statusBadgeBtn" class="badge ${st}" style="cursor:pointer;" title="Click to set a status by hand, or go back to the thesis">${st}${p.manualStatus ? ' *' : ''}</span>
+        ${over ? `<span class="badge warn">Overweight ${wt.toFixed(1)}%</span>` : ''}
+        ${stale ? `<button id="btnMarkRev" class="quiet" style="padding:2px 8px;font-size:calc(11.5px * var(--fs));">Stale (${days >= 999 ? 'never' : days + 'd'}): Mark reviewed</button>` : `<span class="sub" style="font-size:calc(11.5px * var(--fs));">Reviewed ${days === 0 ? 'today' : days + 'd ago'}</span>`}
+        <button id="btnEditPos" class="quiet" style="padding:3px 9px;font-size:calc(12px * var(--fs));">Edit</button>
+      </div>
+    </div>
+    <div class="stat-strip">
+      <div class="stat-box"><span class="stat-lbl">Shares</span><span class="stat-num">${fmtShares(p.shares)}</span></div>
+      <div class="stat-box"><span class="stat-lbl">Avg cost</span><span class="stat-num">${fmtMoney(p.avgCost)}${netPrem ? ` <span class="sub" title="Cost after option premiums">(net ${fmtMoney(netBasis)})</span>` : ''}</span></div>
+      <div class="stat-box"><span class="stat-lbl">Price (click to edit)</span><div id="priceSlot"></div></div>
+      <div class="stat-box"><span class="stat-lbl">Today</span><span class="stat-num ${day != null ? cls(day) : ''}">${day != null ? fmtSigned(day) + ' (' + fmtPct(p.dayPct, true) + ')' : '-'}</span></div>
+      <div class="stat-box"><span class="stat-lbl">Value (${wt.toFixed(1)}%)</span><span class="stat-num">${fmtMoney(val)}</span></div>
+      <div class="stat-box"><span class="stat-lbl">P&amp;L</span><span class="stat-num ${cls(pnl)}">${fmtSigned(pnl)} (${fmtPct(pct, true)})</span></div>
+    </div>
+    <div class="tags-row">
+      <span class="sub" style="font-size:calc(12px * var(--fs));">Themes:</span>
+      ${(p.tags || []).map((t, i) => `<span class="tag-chip">${esc(t)}<button class="tag-x" data-tag-idx="${i}" title="Remove theme">&times;</button></span>`).join('')}
+      <input id="tagAddInput" class="tag-add-input" placeholder="+ Add theme..." />
+    </div>`;
+  container.appendChild(head);
+
+  const priceSlot = head.querySelector('#priceSlot');
+  if (ui.editingPriceId === p.id) {
+    priceSlot.innerHTML = `<input id="inlinePrice" type="number" step="any" class="inline-price-input" value="${posPrice(p)}" />`;
+    const inp = priceSlot.querySelector('#inlinePrice');
+    setTimeout(() => { inp.focus(); inp.select(); }, 0);
+    const commit = () => { const v = parseFloat(inp.value); if (!isNaN(v) && v >= 0) { p.currentPrice = v; p.quoteAt = Date.now(); saveState(); } ui.editingPriceId = null; render(); };
+    inp.onblur = commit;
+    inp.onkeydown = e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { ui.editingPriceId = null; render(); } };
+  } else {
+    priceSlot.innerHTML = `<span class="stat-num editable" title="${p.quoteAt ? 'As of ' + new Date(p.quoteAt).toLocaleString() : ''}">${fmtMoney(posPrice(p))}</span>`;
+    priceSlot.querySelector('span').onclick = () => { ui.editingPriceId = p.id; render(); };
+  }
+  head.querySelector('#btnEditPos').onclick = () => openPositionModal(p, false);
+  const markBtn = head.querySelector('#btnMarkRev');
+  if (markBtn) markBtn.onclick = () => { p.lastReviewed = todayStr(); saveState(); toast('Marked ' + p.ticker + ' reviewed today'); render(); };
+  head.querySelector('#statusBadgeBtn').onclick = () => {
+    const order = [null, 'hold', 'watch', 'exit'];
+    p.manualStatus = order[(order.indexOf(p.manualStatus || null) + 1) % order.length];
+    saveState();
+    toast(p.manualStatus ? p.ticker + ' set to ' + p.manualStatus.toUpperCase() : p.ticker + ' back to its thesis');
+    render();
+  };
+  head.querySelectorAll('[data-tag-idx]').forEach(b => { b.onclick = () => { p.tags.splice(Number(b.dataset.tagIdx), 1); saveState(); render(); }; });
+  const tagInp = head.querySelector('#tagAddInput');
+  tagInp.onkeydown = e => {
+    if (e.key !== 'Enter') return;
+    p = livePos(p);
+    const v = tagInp.value.trim();
+    if (v) { if (!p.tags) p.tags = []; if (!p.tags.includes(v)) p.tags.push(v); saveState(); render(); }
+  };
+
+  // Chart and planner, then holdings across accounts and earnings/news.
+  const grid = document.createElement('div');
+  grid.className = 'detail-grid-3';
+  const leftCol = document.createElement('div'); leftCol.className = 'stack';
+  const rightCol = document.createElement('div'); rightCol.className = 'stack';
+  grid.append(leftCol, rightCol);
+  container.appendChild(grid);
+  leftCol.appendChild(chartCard(p));
+  leftCol.appendChild(acrossCard(p, totals));
+  rightCol.appendChild(plannerCard(p, totals));
+  if (!p.isEtf) rightCol.appendChild(newsCard(p));
+
+  container.appendChild(thesisExitCards(p));
+  container.appendChild(logCard(p));
+}
+
+// ---------- Price chart ----------
+function chartPoints(p) {
+  const c = state.cache.chart[p.ticker];
+  if (c && c.points && c.points.length > 1) return { points: c.points.slice(), source: 'Daily closes from Alpha Vantage' };
+  const own = (state.snapshots || []).filter(s => s.prices && s.prices[p.ticker]).map(s => [s.date, s.prices[p.ticker]]);
+  return { points: own, source: 'Your own price history (from imports and refreshes)' };
+}
+function chartCard(p) {
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  const key = 'chart:' + p.ticker;
+  const hasKey = !!state.settings.alphaVantageKey;
+  const cached = state.cache.chart[p.ticker];
+  if (hasKey && canQuote(p) && state.settings.autoChart && !chartFresh(cached) && !loading.has(key) && !loadErr[key]) loadChart(p);
+  const { points, source } = chartPoints(p);
+  const ranges = { '1m': 22, '3m': 66, all: 9999 };
+  const pts = points.slice(-ranges[ui.chartRange] || -9999);
+  card.innerHTML = `
+    <div class="panel-head">
+      <h4 class="panel-title">Price</h4>
+      <div class="chip-row">${['1m', '3m', 'all'].map(r => `<button class="pill ${ui.chartRange === r ? 'on' : ''}" data-r="${r}">${r === 'all' ? 'All' : r.toUpperCase()}</button>`).join('')}
+        ${hasKey && canQuote(p) && !state.settings.autoChart && !chartFresh(cached) ? '<button class="pill" data-load="1">Load chart</button>' : ''}</div>
+    </div>
+    <div class="chart"></div>
+    <div class="note-line">${loading.has(key) ? 'Loading price history...' : loadErr[key] ? esc(loadErr[key]) : esc(source) + (p.decisionLog && p.decisionLog.length ? '. Dots are decision log entries.' : '')}</div>`;
+  card.querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { ui.chartRange = b.dataset.r; render(); }; });
+  const lb = card.querySelector('[data-load]'); if (lb) lb.onclick = () => loadChart(p);
+  const refs = [{ value: num(p.avgCost), label: 'Cost ' + moneyAxis(num(p.avgCost)), cls: 'ref-cost' }];
+  if (num(p.targetPrice)) refs.push({ value: num(p.targetPrice), label: 'Target', cls: 'ref-target', color: 'var(--ok)', fit: false });
+  if (num(p.stopPrice)) refs.push({ value: num(p.stopPrice), label: 'Stop', cls: 'ref-stop', color: 'var(--late)', fit: false });
+  requestAnimationFrame(() => lineChart(card.querySelector('.chart'), {
+    series: [{ name: p.ticker, points: pts }], refs, height: 200, label: p.ticker + ' price',
+    dots: (p.decisionLog || []).map(e => ({ date: e.date, label: e.note })),
+    empty: hasKey ? (canQuote(p) ? 'No price history yet.' : 'This holding has no ticker to chart.') : 'Add a free Alpha Vantage key in Settings for a price chart. Until then the chart builds from your own imports and refreshes.'
+  }));
+  return card;
+}
+async function loadChart(p) {
+  const key = 'chart:' + p.ticker;
+  if (loading.has(key)) return;
+  loading.add(key);
+  try { await fetchChart(p.ticker); delete loadErr[key]; }
+  catch (e) { loadErr[key] = e.message; }
+  loading.delete(key);
+  if (ui.view === 'positions' && ui.selectedId === p.id) render();
+}
+
+// ---------- Across accounts and through ETFs ----------
+function acrossCard(p, totals) {
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  const same = state.positions.filter(x => x.ticker === p.ticker);
+  const shares = same.reduce((s, x) => s + num(x.shares), 0);
+  const value = same.reduce((s, x) => s + posValue(x), 0);
+  const cost = same.reduce((s, x) => s + posCost(x), 0);
+  const via = [];
+  state.positions.filter(x => x.isEtf).forEach(e => {
+    const h = ((state.etfCache[e.ticker] || {}).holdings || []).find(h => h.symbol.toUpperCase() === p.ticker);
+    if (h) via.push({ etf: e.ticker, account: e.account, val: posValue(e) * num(h.weight) / 100, w: num(h.weight) });
+  });
+  const viaVal = via.reduce((s, x) => s + x.val, 0);
+  const all = allTotals();
+  card.innerHTML = `
+    <div class="panel-head"><h4 class="panel-title">${esc(p.ticker)} across your accounts</h4><span class="sub" style="font-size:calc(11.5px * var(--fs));">All accounts</span></div>
+    <table class="mini-table">
+      <tr><th>Account</th><th class="num">Shares</th><th class="num">Avg cost</th><th class="num">Value</th><th class="num">P&amp;L</th></tr>
+      ${same.map(x => `<tr class="click" data-id="${x.id}"><td>${esc(shortAcct(x.account))}</td><td class="num">${fmtShares(x.shares)}</td><td class="num">${fmtMoney(x.avgCost)}</td><td class="num">${fmtMoney(posValue(x))}</td><td class="num ${cls(posPnl(x))}">${fmtSigned(posPnl(x), true)}</td></tr>`).join('')}
+      ${same.length > 1 ? `<tr><td><b>Combined</b></td><td class="num"><b>${fmtShares(shares)}</b></td><td class="num" title="Blended cost per share">${shares ? fmtMoney(cost / shares) : '-'}</td><td class="num"><b>${fmtMoney(value)}</b></td><td class="num ${cls(value - cost)}">${fmtSigned(value - cost, true)}</td></tr>` : ''}
+      ${via.map(v => `<tr><td class="sub">Through ${esc(v.etf)} (${esc(shortAcct(v.account))}, ${v.w.toFixed(1)}%)</td><td></td><td></td><td class="num">${fmtMoney(v.val)}</td><td></td></tr>`).join('')}
+    </table>
+    <div class="note-line">Total exposure ${fmtMoney(value + viaVal)}, ${all.invested ? ((value + viaVal) / all.invested * 100).toFixed(1) : '0'}% of everything you have invested${via.length ? '' : '. ETF look-through appears once your ETFs have holdings (ETFs tab)'}.</div>`;
+  card.querySelectorAll('tr[data-id]').forEach(tr => { tr.onclick = () => { ui.selectedId = tr.dataset.id; if (ui.account !== 'ALL') ui.account = 'ALL'; render(); }; });
+  return card;
+}
+
+// ---------- Trim and target planner ----------
+function plannerCard(p, totals) {
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  const price = posPrice(p), cost = num(p.avgCost), tgt = num(p.targetPrice), stop = num(p.stopPrice);
+  const max = num(state.settings.maxStockPct) || 10;
+  const wt = weightOf(p, totals), base = totals.weightBase;
+  const val = posValue(p);
+  let trim = '';
+  if (base > 0 && price > 0) {
+    const maxVal = base * max / 100;
+    if (val > maxVal) { const sh = (val - maxVal) / price; trim = `Over your ${max}% limit: sell about <b>${fmtShares(Math.ceil(sh * 100) / 100)}</b> shares (<b>${fmtMoney(val - maxVal)}</b>) to get back to ${max}%.`; }
+    else trim = `Room to add about <b>${fmtMoney(maxVal - val)}</b> (${fmtShares(Math.floor((maxVal - val) / price * 100) / 100)} shares) before your ${max}% limit.`;
+  }
+  const marks = [{ v: price, label: 'Now ' + moneyAxis(price), color: 'var(--accent)' }, { v: cost, label: 'Cost ' + moneyAxis(cost), color: 'var(--muted)', below: true }];
+  if (tgt) marks.push({ v: tgt, label: 'Target ' + moneyAxis(tgt), color: 'var(--ok)' });
+  if (stop) marks.push({ v: stop, label: 'Stop ' + moneyAxis(stop), color: 'var(--late)', below: true });
+  const vals = marks.map(m => m.v).filter(v => v > 0);
+  // Flip a label to the other side when it would run into its neighbor.
+  const lastPos = { up: -99, down: -99 };
+  marks.filter(m => m.v > 0).sort((a, b) => a.v - b.v).forEach(m => {
+    const pos = (m.v - Math.min(...vals) * 0.96) / ((Math.max(...vals) * 1.04 - Math.min(...vals) * 0.96) || 1) * 84;
+    let side = m.below ? 'down' : 'up';
+    if (pos - lastPos[side] < 22) side = side === 'up' ? 'down' : 'up';
+    m.below = side === 'down';
+    lastPos[side] = pos;
+  });
+  const lo = Math.min(...vals) * 0.96, hi = Math.max(...vals) * 1.04;
+  const X = v => (8 + (v - lo) / (hi - lo || 1) * 84).toFixed(2) + '%';   // 8% to 92% so labels stay inside
+  const lines = [];
+  if (tgt && price) lines.push(`To target: <b class="${cls(tgt - price)}">${fmtPct((tgt / price - 1) * 100, true)}</b>, position would be <b>${fmtMoney(num(p.shares) * tgt)}</b> (${fmtSigned(num(p.shares) * (tgt - cost), true)} total gain).`);
+  if (stop && price) lines.push(`To stop: <b class="${cls(stop - price)}">${fmtPct((stop / price - 1) * 100, true)}</b>, a drop of <b>${fmtMoney(num(p.shares) * (price - stop))}</b>.`);
+  if (trim) lines.push(trim);
+  card.innerHTML = `
+    <div class="panel-head"><h4 class="panel-title">Plan</h4><span class="sub" style="font-size:calc(11.5px * var(--fs));">Weight ${wt.toFixed(1)}% of ${max}% max</span></div>
+    <div class="range-bar">
+      ${stop ? `<div class="seg" style="left:0;width:${X(stop)};background:var(--late-soft)"></div>` : ''}
+      ${tgt ? `<div class="seg" style="left:${X(tgt)};right:0;background:color-mix(in srgb, var(--ok) 20%, transparent)"></div>` : ''}
+      ${marks.filter(m => m.v > 0).map(m => `<div class="mark ${m.below ? 'below' : ''}" style="left:${X(m.v)};background:${m.color}"><span style="color:${m.color}">${esc(m.label)}</span></div>`).join('')}
+    </div>
+    <div class="plan-inputs">
+      <label>Target price<input id="planTarget" type="number" step="any" min="0" value="${tgt || ''}" placeholder="e.g. ${price ? (price * 1.25).toFixed(2) : ''}"></label>
+      <label>Stop price<input id="planStop" type="number" step="any" min="0" value="${stop || ''}" placeholder="e.g. ${price ? (price * 0.85).toFixed(2) : ''}"></label>
+    </div>
+    <div class="plan-out">${lines.join('<br>') || '<span class="sub">Set a target and a stop to see how far away they are.</span>'}</div>`;
+  const bind = (id, field) => {
+    const inp = card.querySelector('#' + id);
+    const commit = () => { const c = livePos(p); const v = parseFloat(inp.value); const nv = isNaN(v) || v <= 0 ? null : v; if (nv !== (c[field] || null)) { c[field] = nv; saveState(); render(); } };
+    inp.onchange = commit;
+    inp.onkeydown = e => { if (e.key === 'Enter') inp.blur(); };
+  };
+  bind('planTarget', 'targetPrice');
+  bind('planStop', 'stopPrice');
+  return card;
+}
+
+// ---------- Earnings and news ----------
+function newsCard(p) {
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  const hasKey = !!state.settings.finnhubKey;
+  const earn = state.cache.earn[p.ticker], news = state.cache.news[p.ticker];
+  const fresh = c => c && Date.now() - num(c.at) < DAY_MS;
+  if (hasKey && canQuote(p) && state.settings.autoNews) {
+    if (!fresh(earn) && !loading.has('earn:' + p.ticker) && !loadErr['earn:' + p.ticker]) loadSide(p, 'earn');
+    if (!fresh(news) && !loading.has('news:' + p.ticker) && !loadErr['news:' + p.ticker]) loadSide(p, 'news');
+  }
+  let earnHtml = '<span class="sub">-</span>';
+  if (earn) {
+    if (earn.next) {
+      const dd = daysSince(earn.next.date) * -1;
+      const when = earn.next.hour === 'bmo' ? ' before the open' : earn.next.hour === 'amc' ? ' after the close' : '';
+      earnHtml = `<b>${esc(earn.next.date)}</b>${esc(when)} <span class="sub">(${dd <= 0 ? 'today' : 'in ' + dd + ' days'}${earn.next.epsEstimate != null ? ', EPS estimate ' + Number(earn.next.epsEstimate).toFixed(2) : ''})</span>`;
+    } else earnHtml = '<span class="sub">None scheduled in the next 4 months</span>';
+  } else if (loading.has('earn:' + p.ticker)) earnHtml = '<span class="sub">Loading...</span>';
+  const items = news && news.items || [];
+  card.innerHTML = `
+    <div class="panel-head"><h4 class="panel-title">Earnings and news</h4>${hasKey && !state.settings.autoNews ? '<button class="pill" data-load="1">Load</button>' : ''}</div>
+    ${!hasKey ? '<div class="sub">Add a free Finnhub key in Settings to see the next earnings date and recent headlines.</div>' : `
+    <div class="earn-line">Next earnings: ${earnHtml}</div>
+    <div class="news-list">${items.length ? items.slice(0, 5).map(n => `<div class="news-item" data-u="${esc(n.u)}" title="${esc(n.u ? 'Open the article' : '')}"><span class="h">${esc(n.h)}</span><span class="m">${esc(n.s)}${n.t ? ' · ' + new Date(n.t).toLocaleDateString() : ''}</span></div>`).join('')
+      : `<div class="sub">${loading.has('news:' + p.ticker) ? 'Loading headlines...' : loadErr['news:' + p.ticker] ? esc(loadErr['news:' + p.ticker]) : news ? 'No headlines this week.' : ''}</div>`}</div>`}`;
+  card.querySelectorAll('.news-item').forEach(n => { n.onclick = () => { if (n.dataset.u) openUrl(n.dataset.u); }; });
+  const lb = card.querySelector('[data-load]'); if (lb) lb.onclick = () => { loadSide(p, 'earn'); loadSide(p, 'news'); };
+  return card;
+}
+async function loadSide(p, kind) {
+  const key = kind + ':' + p.ticker;
+  if (loading.has(key)) return;
+  loading.add(key);
+  try { await (kind === 'earn' ? fetchEarnings(p.ticker) : fetchNews(p.ticker)); delete loadErr[key]; }
+  catch (e) { loadErr[key] = e.message; }
+  loading.delete(key);
+  if (ui.view === 'positions' && ui.selectedId === p.id) render();
+}
+
+// ---------- Thesis, exit plan, decision log (unchanged from 1.0 apart from size) ----------
+function thesisExitCards(p) {
+  const thesisItems = Array.isArray(p.thesis) ? p.thesis : [];
+  const checked = thesisItems.filter(t => t.checked).length;
+  const grid = document.createElement('div');
+  grid.className = 'detail-grid';
+  grid.innerHTML = `
+    <div class="panel-card">
+      <div class="panel-head"><h4 class="panel-title">Why I bought (thesis health: ${checked}/${thesisItems.length})</h4></div>
+      <div id="thesisList" class="thesis-list"></div>
+      <div class="quick-add-row"><input id="thesisAddInput" placeholder="+ Add a thesis point (Enter)..." /><button id="thesisAddBtn" class="quiet" style="padding:4px 10px;">Add</button></div>
+    </div>
+    <div class="panel-card">
+      <div class="panel-head"><h4 class="panel-title">Exit strategy</h4><span class="sub" style="font-size:calc(11.5px * var(--fs));">Saves as you type</span></div>
+      <textarea id="exitNotes" class="exit-textarea" placeholder="Your rules for trimming or selling (e.g. trim 25% if weight goes over 12%, exit if the thesis breaks)...">${esc(p.exitStrategy || '')}</textarea>
+    </div>`;
+  const tList = grid.querySelector('#thesisList');
+  if (!thesisItems.length) tList.innerHTML = '<div class="sub" style="padding:6px 2px;">No thesis points yet. Add 2 or 3 reasons you bought this stock.</div>';
+  thesisItems.forEach((item, idx) => {
+    const row = document.createElement('div');
+    row.className = 'thesis-item' + (item.checked ? '' : ' broken');
+    row.innerHTML = `<input type="checkbox" ${item.checked ? 'checked' : ''} /><span class="thesis-text">${esc(item.text)}</span><button class="row-del-btn" title="Remove">&times;</button>`;
+    row.querySelector('input').onchange = ev => { item.checked = ev.target.checked; p.lastReviewed = todayStr(); saveState(); render(); };
+    row.querySelector('.row-del-btn').onclick = () => { p.thesis.splice(idx, 1); saveState(); render(); };
+    tList.appendChild(row);
+  });
+  const add = () => {
+    p = livePos(p);
+    const inp = grid.querySelector('#thesisAddInput'), txt = inp.value.trim();
+    if (!txt) return;
+    if (!p.thesis) p.thesis = [];
+    p.thesis.push({ id: uid(), text: txt, checked: true });
+    p.lastReviewed = todayStr(); saveState(); render();
+  };
+  grid.querySelector('#thesisAddBtn').onclick = add;
+  grid.querySelector('#thesisAddInput').onkeydown = e => { if (e.key === 'Enter') add(); };
+  // Always write to the current copy of the position (a sync from another PC can replace it while you type).
+  const ex = grid.querySelector('#exitNotes');
+  const commitExit = () => { const c = livePos(p); if (c.exitStrategy !== ex.value) { c.exitStrategy = ex.value; saveSoon(); } };
+  ex.oninput = commitExit;
+  ex.addEventListener('blur', commitExit);
+  return grid;
+}
+function logCard(p) {
+  const card = document.createElement('div');
+  card.className = 'panel-card log-card';
+  card.innerHTML = `
+    <div class="panel-head"><h4 class="panel-title">Decision log</h4><span class="sub" style="font-size:calc(11.5px * var(--fs));">Dated timeline of holds, trims and reviews</span></div>
+    <div class="quick-add-row"><input id="logAddInput" placeholder="+ Add a dated note (e.g. Earnings beat, keeping full size)..." /><button id="logAddBtn" class="quiet" style="padding:4px 10px;">Log</button></div>
+    <div id="logList" class="log-list"></div>`;
+  const list = card.querySelector('#logList');
+  const logs = Array.isArray(p.decisionLog) ? p.decisionLog : [];
+  if (!logs.length) list.innerHTML = '<div class="sub" style="padding:6px 2px;">No decision notes yet.</div>';
+  logs.forEach((entry, idx) => {
+    const row = document.createElement('div');
+    row.className = 'log-item';
+    row.innerHTML = `<span class="log-date">${esc(entry.date)}</span><span class="log-text">${esc(entry.note)}</span><button class="row-del-btn" title="Delete note">&times;</button>`;
+    row.querySelector('.row-del-btn').onclick = () => { p.decisionLog.splice(idx, 1); saveState(); render(); };
+    list.appendChild(row);
+  });
+  const add = () => {
+    p = livePos(p);
+    const inp = card.querySelector('#logAddInput'), txt = inp.value.trim();
+    if (!txt) return;
+    if (!p.decisionLog) p.decisionLog = [];
+    p.decisionLog.unshift({ id: uid(), date: todayStr(), note: txt });
+    p.lastReviewed = todayStr(); saveState(); render();
+  };
+  card.querySelector('#logAddBtn').onclick = add;
+  card.querySelector('#logAddInput').onkeydown = e => { if (e.key === 'Enter') add(); };
+  return card;
+}
+
+/* ---- 41-etfs.js ---- */
+/* ETFs view (from 1.0): fund cards with value and P&L, pairwise overlap, and look-through exposure. */
+function renderEtfsView(ws) {
+  const totals = getPortfolioTotals(true);
+  const etfs = getFilteredPositions({ onlyEtfs: true });
+  etfs.sort((a, b) => posValue(b) - posValue(a));
+
+  const left = document.createElement('div');
+  left.className = 'pane-left';
+  left.innerHTML = `
+    <div>
+      <div style="font-weight:700;font-size:calc(15px * var(--fs));">ETFs and funds (${etfs.length}): ${fmtMoneyShort(totals.etfVal)}</div>
+      <div class="sub" style="font-size:calc(11.5px * var(--fs));margin-top:2px;">Untick one to preview "what if I sold it". Click for holdings</div>
+    </div>
+    <div id="etfList" class="scroll-list"></div>
+    <div style="display:flex;gap:6px;flex-shrink:0;">
+      <button id="btnAddEtf" class="primary" style="flex:1;font-size:calc(12px * var(--fs));">+ Add ETF</button>
+      <button id="btnRefEtf" class="quiet" style="flex:1;font-size:calc(12px * var(--fs));">Refresh holdings</button>
+    </div>
+  `;
+  ws.appendChild(left);
+
+  left.querySelector('#btnAddEtf').onclick = () => openPositionModal(null, true);
+  left.querySelector('#btnRefEtf').onclick = () => refreshAllEtfHoldings(etfs);
+
+  const listEl = left.querySelector('#etfList');
+  if (etfs.length === 0) {
+    listEl.innerHTML = `<div class="tome-empty" style="padding:20px 10px;text-align:center;">
+      <div style="margin-bottom:6px;">No ETFs tracked yet.</div>
+      <div class="sub">Add an ETF or right-click any stock to move it here.</div>
+    </div>`;
+  } else {
+    etfs.forEach(p => {
+      const excluded = ui.whatIfExcluded.has(p.id);
+      const cache = state.etfCache[p.ticker] || {};
+      const er = p.expenseRatio != null && p.expenseRatio !== '' ? Number(p.expenseRatio) : (cache.expenseRatio != null ? Number(cache.expenseRatio) : null);
+      const holdingsCount = (cache.holdings || []).length;
+
+      const card = document.createElement('div');
+      card.className = 'pos-card' + (excluded ? ' muted-card' : '');
+      card.innerHTML = posCardHtml(p, totals, { check: true, excluded }) + `<div class="pos-acct">${er != null ? er.toFixed(2) + '% fee' : 'No fee set'} &middot; ${holdingsCount ? holdingsCount + ' holdings' : 'No holdings yet'}</div>`;
+      const cb = card.querySelector('input[type="checkbox"]');
+      cb.onclick = (ev) => {
+        ev.stopPropagation();
+        if (cb.checked) ui.whatIfExcluded.delete(p.id);
+        else ui.whatIfExcluded.add(p.id);
+        render();
+      };
+      card.onclick = () => openEtfHoldingsModal(p);
+      card.oncontextmenu = (ev) => openPositionContextMenu(ev, p);
+      listEl.appendChild(card);
+    });
+  }
+
+  // Right Pane: Overlap Matrix + True Look-Through Exposure
+  const right = document.createElement('div');
+  right.className = 'pane-right';
+  ws.appendChild(right);
+
+  const activeEtfs = etfs.filter(p => !ui.whatIfExcluded.has(p.id));
+  // Deduplicate ETF tickers for pairwise overlap
+  const uniqueEtfMap = new Map();
+  activeEtfs.forEach(p => {
+    if (!uniqueEtfMap.has(p.ticker)) uniqueEtfMap.set(p.ticker, p);
+  });
+  const uniqueEtfs = Array.from(uniqueEtfMap.values());
+
+  // 1. Overlap Matrix Card
+  const overlapCard = document.createElement('div');
+  overlapCard.className = 'panel-card';
+  overlapCard.innerHTML = `
+    <div class="panel-head">
+      <h4 class="panel-title">Overlap Matrix (Pairwise Weight Overlap)</h4>
+      <span class="sub" style="font-size:calc(11px * var(--fs));">Click any ETF on the left to edit or paste holdings</span>
+    </div>
+    <div id="overlapBody" style="display:flex;flex-direction:column;gap:8px;"></div>
+  `;
+  right.appendChild(overlapCard);
+
+  const ob = overlapCard.querySelector('#overlapBody');
+  const pairs = [];
+  for (let i = 0; i < uniqueEtfs.length; i++) {
+    for (let j = i + 1; j < uniqueEtfs.length; j++) {
+      const a = uniqueEtfs[i], b = uniqueEtfs[j];
+      const hA = (state.etfCache[a.ticker] && state.etfCache[a.ticker].holdings) || [];
+      const hB = (state.etfCache[b.ticker] && state.etfCache[b.ticker].holdings) || [];
+      if (!hA.length || !hB.length) continue;
+      const mapB = new Map();
+      hB.forEach(h => mapB.set(h.symbol.toUpperCase(), Number(h.weight) || 0));
+      let overlap = 0;
+      let sharedCount = 0;
+      hA.forEach(h => {
+        const sym = h.symbol.toUpperCase();
+        if (mapB.has(sym)) {
+          overlap += Math.min(Number(h.weight) || 0, mapB.get(sym));
+          sharedCount++;
+        }
+      });
+      const erA = a.expenseRatio != null && a.expenseRatio !== '' ? Number(a.expenseRatio) : (state.etfCache[a.ticker] && state.etfCache[a.ticker].expenseRatio);
+      const erB = b.expenseRatio != null && b.expenseRatio !== '' ? Number(b.expenseRatio) : (state.etfCache[b.ticker] && state.etfCache[b.ticker].expenseRatio);
+      pairs.push({ a: a.ticker, b: b.ticker, overlap: Math.min(100, overlap), sharedCount, erA, erB });
+    }
+  }
+  pairs.sort((x, y) => y.overlap - x.overlap);
+
+  if (pairs.length === 0) {
+    ob.innerHTML = `<div class="sub">Add at least two ETFs with holdings data (via Alpha Vantage in Settings or by clicking an ETF to paste holdings) to see pairwise overlap.</div>`;
+  } else {
+    pairs.forEach(pr => {
+      const high = pr.overlap >= 50;
+      const feeText = (pr.erA != null || pr.erB != null)
+        ? `${pr.erA != null ? Number(pr.erA).toFixed(2) + '%' : '?'} vs ${pr.erB != null ? Number(pr.erB).toFixed(2) + '%' : '?'} fee`
+        : `${pr.sharedCount} shared holdings`;
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML = `
+        <div class="bar-row-head">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <strong>${esc(pr.a)} + ${esc(pr.b)}: ${pr.overlap.toFixed(0)}% overlap</strong>
+            ${high ? '<span class="badge exit">High - Consolidate?</span>' : ''}
+          </div>
+          <span class="sub" style="font-family:var(--mono);font-size:calc(11.5px * var(--fs));">${esc(feeText)}</span>
+        </div>
+        <div class="bar-track">
+          <div class="${high ? 'bar-fill-high' : 'bar-fill-etf'}" style="width:${pr.overlap}%"></div>
+        </div>
+      `;
+      ob.appendChild(row);
+    });
+  }
+
+  // 2. True Look-Through Exposure Card
+  const ltCard = document.createElement('div');
+  ltCard.className = 'panel-card';
+  ltCard.innerHTML = `
+    <div class="panel-head">
+      <h4 class="panel-title">True Look-Through Exposure (ETFs + Direct Stocks)</h4>
+      <span class="sub" style="font-size:calc(11px * var(--fs));">Green = Direct Stock &middot; Accent = Via ETFs</span>
+    </div>
+    <div id="lookThroughBody" style="display:flex;flex-direction:column;gap:8px;"></div>
+  `;
+  right.appendChild(ltCard);
+
+  const ltMap = new Map(); // symbol -> { directVal, etfVal, via: Set }
+  const addExp = (sym, directV, etfV, viaTicker) => {
+    const k = sym.toUpperCase();
+    if (!ltMap.has(k)) ltMap.set(k, { symbol: k, directVal: 0, etfVal: 0, via: new Set() });
+    const rec = ltMap.get(k);
+    rec.directVal += directV;
+    rec.etfVal += etfV;
+    if (viaTicker) rec.via.add(viaTicker);
+  };
+
+  getFilteredPositions({ onlyStocks: true }).forEach(p => {
+    addExp(p.ticker, posValue(p), 0, null);
+  });
+  activeEtfs.forEach(p => {
+    const v = posValue(p);
+    const cache = state.etfCache[p.ticker];
+    if (cache && Array.isArray(cache.holdings) && cache.holdings.length) {
+      cache.holdings.forEach(h => {
+        const w = (Number(h.weight) || 0) / 100;
+        if (w > 0) addExp(h.symbol, 0, v * w, p.ticker);
+      });
+    }
+  });
+
+  const ltArr = Array.from(ltMap.values())
+    .map(r => ({
+      ...r,
+      totalVal: r.directVal + r.etfVal,
+      directPct: totals.totalVal > 0 ? (r.directVal / totals.totalVal) * 100 : 0,
+      etfPct: totals.totalVal > 0 ? (r.etfVal / totals.totalVal) * 100 : 0,
+      totalPct: totals.totalVal > 0 ? ((r.directVal + r.etfVal) / totals.totalVal) * 100 : 0
+    }))
+    .sort((a, b) => b.totalPct - a.totalPct)
+    .slice(0, 12);
+
+  const ltb = ltCard.querySelector('#lookThroughBody');
+  if (ltArr.length === 0) {
+    ltb.innerHTML = `<div class="sub">No exposure data yet.</div>`;
+  } else {
+    const maxStock = Number(state.settings.maxStockPct) || 10;
+    const scaleMax = Math.max(20, ltArr[0].totalPct * 1.15);
+    ltArr.forEach(item => {
+      const viaList = Array.from(item.via).join('/');
+      const over = item.totalPct > maxStock;
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML = `
+        <div class="bar-row-head">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <strong>${esc(item.symbol)}: ${item.totalPct.toFixed(1)}%</strong>
+            <span class="sub">(${item.directPct.toFixed(1)}% direct + ${item.etfPct.toFixed(1)}% via ${viaList || 'ETFs'})</span>
+            ${over ? '<span class="badge warn">Over Cap</span>' : ''}
+          </div>
+          <span class="sub" style="font-family:var(--mono);">${fmtMoneyShort(item.totalVal)}</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill-direct" style="width:${(item.directPct / scaleMax) * 100}%"></div>
+          <div class="bar-fill-etf" style="width:${(item.etfPct / scaleMax) * 100}%"></div>
+        </div>
+      `;
+      ltb.appendChild(row);
+    });
+  }
+}
+
+
+/* ---- 42-overview.js ---- */
+/* Overview: headline numbers, value over time, allocation donuts, today's movers, tax-loss candidates,
+   manual assets with net worth, then the sector / holdings / theme / account breakdowns from 1.0. */
+
+function renderOverviewView(ws) {
+  const full = document.createElement('div');
+  full.className = 'pane-full';
+  ws.appendChild(full);
+  const list = getFilteredPositions();
+  const t = getPortfolioTotals(false);
+  const isAll = ui.account === 'ALL';
+
+  if (!list.length && !t.cash && !(state.manualAssets || []).length) {
+    full.innerHTML = `<div class="placeholder-box"><div style="font-weight:700;">Nothing to show yet</div><div class="sub">Import a Fidelity CSV or add positions to see your value over time, allocation and movers.</div></div>`;
+    return;
+  }
+
+  // Headline numbers
+  const kpis = document.createElement('div');
+  kpis.className = 'kpi-row';
+  const k = (label, value, delta, title) => `<div class="kpi" title="${esc(title || '')}"><span class="k">${esc(label)}</span><span class="v">${value}</span>${delta || ''}</div>`;
+  const prevSnap = previousSnapshot();
+  const vsPrev = prevSnap && isAll ? t.total - prevSnap.total : null;
+  kpis.innerHTML = [
+    k(isAll ? 'Fidelity total' : shortAcct(ui.account), fmtMoneyShort(t.total), vsPrev != null ? `<span class="d ${cls(vsPrev)}">${fmtSigned(vsPrev, true)} since ${shortDate(prevSnap.date)}</span>` : '', 'Holdings, cash and open options'),
+    k('Invested', fmtMoneyShort(t.invested), `<span class="d ${cls(t.pnl)}">${fmtSigned(t.pnl, true)} (${fmtPct(t.pnlPct, true)})</span>`, 'Holdings only, with gain or loss against cost'),
+    t.dayKnown ? k('Today', `<span class="${cls(t.day)}">${fmtSigned(t.day, true)}</span>`, `<span class="d ${cls(t.day)}">${fmtPct(t.dayPct, true)}</span>`, 'From the latest prices') : '',
+    k('Cash', fmtMoneyShort(t.cash), t.total ? `<span class="d sub">${(t.cash / t.total * 100).toFixed(1)}% of total</span>` : ''),
+    Math.abs(t.options) >= 0.5 ? k('Open options', fmtMoneyShort(t.options)) : '',
+    isAll && (state.manualAssets || []).length ? k('Net worth', fmtMoneyShort(t.netWorth), `<span class="d sub">incl. ${fmtMoneyShort(manualNet())} other assets</span>`, 'Fidelity total plus manual assets minus what you owe on them') : ''
+  ].join('');
+  full.appendChild(kpis);
+
+  // Value over time
+  full.appendChild(historyCard());
+
+  // Allocation donuts
+  const donuts = document.createElement('div');
+  donuts.className = 'overview-grid';
+  donuts.style.gridTemplateColumns = 'repeat(auto-fit, minmax(300px, 1fr))';
+  const byAcct = new Map(), byType = new Map(), bySector = new Map();
+  list.forEach(p => {
+    const v = posValue(p);
+    byAcct.set(shortAcct(p.account || 'Main'), (byAcct.get(shortAcct(p.account || 'Main')) || 0) + v);
+    byType.set(assetType(p), (byType.get(assetType(p)) || 0) + v);
+    const sec = p.sector || (p.isEtf ? 'ETF / broad market' : 'Unassigned');
+    bySector.set(sec, (bySector.get(sec) || 0) + v);
+  });
+  Object.keys(state.cashByAccount || {}).forEach(a => { if (!inAccount(a)) return; const c = num(state.cashByAccount[a]); if (c > 0) byAcct.set(shortAcct(a), (byAcct.get(shortAcct(a)) || 0) + c); });
+  if (t.cash > 0) byType.set('Cash', t.cash);
+  if (t.options > 0) byType.set('Options', t.options);
+  const sorted = m => Array.from(m.entries()).map(([label, val]) => ({ label, val })).sort((a, b) => b.val - a.val);
+  const donutCard = (title, items, center, onPick) => {
+    const c = document.createElement('div'); c.className = 'panel-card';
+    c.innerHTML = `<div class="panel-head"><h4 class="panel-title">${esc(title)}</h4></div><div class="d"></div>`;
+    requestAnimationFrame(() => donut(c.querySelector('.d'), items, { center, onPick }));
+    return c;
+  };
+  if (isAll) donuts.appendChild(donutCard('By account', sorted(byAcct), fmtMoneyShort(t.total), lbl => { const a = getAccounts().find(x => shortAcct(x) === lbl); if (a) { ui.account = a; render(); } }));
+  donuts.appendChild(donutCard('By type', sorted(byType), isAll ? '' : fmtMoneyShort(t.total)));
+  donuts.appendChild(donutCard('By sector', sorted(bySector), fmtMoneyShort(t.invested)));
+  full.appendChild(donuts);
+
+  // Movers and tax-loss candidates
+  const two = document.createElement('div');
+  two.className = 'overview-grid';
+  two.appendChild(moversCard(list));
+  two.appendChild(taxLossCard(list));
+  full.appendChild(two);
+
+  if (isAll) full.appendChild(manualAssetsCard(t));
+
+  // 1.0 breakdowns
+  full.appendChild(breakdowns(list, t));
+}
+
+function previousSnapshot() {
+  const snaps = (state.snapshots || []).filter(s => s.date < todayStr());
+  return snaps.length ? snaps[snaps.length - 1] : null;
+}
+
+function historyCard() {
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  const snaps = state.snapshots || [];
+  const isAll = ui.account === 'ALL';
+  const opts = isAll ? [['total', 'Fidelity total'], ['networth', 'Net worth'], ['invested', 'Invested'], ['accounts', 'By account']] : [['account', shortAcct(ui.account)]];
+  if (!opts.some(o => o[0] === ui.historySeries)) ui.historySeries = opts[0][0];
+  const ranges = [['1m', 31], ['3m', 92], ['1y', 366], ['all', 99999]];
+  const from = addDays(todayStr(), -(ranges.find(r => r[0] === ui.historyRange) || ranges[3])[1]);
+  const inRange = snaps.filter(s => s.date >= from);
+  let series = [];
+  if (ui.historySeries === 'accounts') {
+    const names = Array.from(new Set(inRange.flatMap(s => Object.keys(s.byAccount || {}))));
+    names.sort((a, b) => num((inRange[inRange.length - 1].byAccount || {})[b]) - num((inRange[inRange.length - 1].byAccount || {})[a]));
+    series = names.slice(0, 8).map(n => ({ name: shortAcct(n), points: inRange.filter(s => s.byAccount && s.byAccount[n] != null).map(s => [s.date, s.byAccount[n]]) }));
+  } else if (ui.historySeries === 'account') {
+    series = [{ name: shortAcct(ui.account), points: inRange.filter(s => s.byAccount && s.byAccount[ui.account] != null).map(s => [s.date, s.byAccount[ui.account]]) }];
+  } else {
+    const f = { total: s => s.total, networth: s => s.total + num(s.manual), invested: s => s.invested }[ui.historySeries];
+    series = [{ name: ui.historySeries, points: inRange.map(s => [s.date, f(s)]) }];
+  }
+  card.innerHTML = `
+    <div class="panel-head">
+      <h4 class="panel-title">Value over time</h4>
+      <div class="chip-row">${opts.map(o => `<button class="pill ${ui.historySeries === o[0] ? 'on' : ''}" data-s="${o[0]}">${esc(o[1])}</button>`).join('')}
+        <span style="width:8px"></span>${ranges.map(r => `<button class="pill ${ui.historyRange === r[0] ? 'on' : ''}" data-r="${r[0]}">${r[0] === 'all' ? 'All' : r[0].toUpperCase()}</button>`).join('')}</div>
+    </div>
+    <div class="chart"></div>
+    ${ui.historySeries === 'accounts' ? `<div class="legend">${series.map((s, i) => `<span><i style="background:${PALETTE[i % PALETTE.length]}"></i>${esc(s.name)}</span>`).join('')}</div>` : ''}
+    <div class="note-line">One point a day, saved when you import a CSV, refresh prices, or open Stocks Hub. ${snaps.length} day${snaps.length === 1 ? '' : 's'} saved so far.</div>`;
+  card.querySelectorAll('[data-s]').forEach(b => { b.onclick = () => { ui.historySeries = b.dataset.s; render(); }; });
+  card.querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { ui.historyRange = b.dataset.r; render(); }; });
+  requestAnimationFrame(() => lineChart(card.querySelector('.chart'), { series, height: 220, area: series.length === 1, label: 'Value over time', empty: 'The chart starts with your next day of use: one point is saved each day.' }));
+  return card;
+}
+
+function moversCard(list) {
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  const byT = new Map();
+  list.forEach(p => {
+    if (p.dayChange == null || p.valueOnly) return;
+    const r = byT.get(p.ticker) || { ticker: p.ticker, pct: num(p.dayPct), day: 0, val: 0, id: p.id, isEtf: p.isEtf };
+    r.day += posDay(p); r.val += posValue(p);
+    byT.set(p.ticker, r);
+  });
+  const rows = Array.from(byT.values());
+  const up = rows.filter(r => r.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 5);
+  const down = rows.filter(r => r.pct < 0).sort((a, b) => a.pct - b.pct).slice(0, 5);
+  const newest = Math.max(0, ...list.map(p => num(p.quoteAt)));
+  const tr = r => `<tr class="click" data-id="${r.id}" data-etf="${r.isEtf ? 1 : ''}"><td><b>${esc(r.ticker)}</b></td><td class="num ${cls(r.pct)}">${fmtPct(r.pct, true)}</td><td class="num ${cls(r.day)}">${fmtSigned(r.day, true)}</td><td class="num sub">${fmtMoneyShort(r.val)}</td></tr>`;
+  card.innerHTML = `
+    <div class="panel-head"><h4 class="panel-title">Today's movers</h4><span class="sub" style="font-size:calc(11.5px * var(--fs));">${newest ? 'Prices as of ' + new Date(newest).toLocaleString([], { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}</span></div>
+    ${rows.length ? `<table class="mini-table"><tr><th>Gainers</th><th class="num">Today</th><th class="num">$</th><th class="num">Value</th></tr>${up.map(tr).join('') || '<tr><td colspan="4" class="sub">None up today</td></tr>'}
+      <tr><th>Losers</th><th></th><th></th><th></th></tr>${down.map(tr).join('') || '<tr><td colspan="4" class="sub">None down today</td></tr>'}</table>`
+      : '<div class="sub">Refresh prices (or import a CSV) to see what moved today.</div>'}`;
+  card.querySelectorAll('tr[data-id]').forEach(r => { r.onclick = () => openPositionById(r.dataset.id); });
+  return card;
+}
+
+function openPositionById(id) {
+  const p = state.positions.find(x => x.id === id);
+  if (!p) return;
+  if (p.isEtf) { openEtfHoldingsModal(p); return; }
+  ui.view = 'positions'; ui.selectedId = id; ui.statusFilter = 'all'; ui.search = '';
+  if (!inAccount(p.account)) ui.account = 'ALL';
+  render();
+}
+
+function taxLossCard(list) {
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  const losers = list.filter(p => isTaxable(p.account) && posPnl(p) < -1).sort((a, b) => posPnl(a) - posPnl(b));
+  const total = losers.reduce((s, p) => s + posPnl(p), 0);
+  const elsewhere = p => state.positions.filter(x => x.ticker === p.ticker && x.account !== p.account).map(x => shortAcct(x.account));
+  card.innerHTML = `
+    <div class="panel-head"><h4 class="panel-title">Tax-loss candidates</h4><span class="sub" style="font-size:calc(11.5px * var(--fs));">Taxable accounts only</span></div>
+    ${losers.length ? `<div class="scroll-box"><table class="mini-table"><tr><th>Ticker</th><th>Account</th><th class="num">Loss</th><th class="num">%</th></tr>
+      ${losers.map(p => { const o = elsewhere(p); return `<tr class="click" data-id="${p.id}" title="${o.length ? 'Also held in ' + esc(o.join(', ')) + '. Buying more there within 30 days of selling here can block the loss' : ''}"><td><b>${esc(p.ticker)}</b>${o.length ? ' <span class="badge warn" style="font-size:calc(9.5px * var(--fs));">Also in ' + esc(o.join(', ')) + '</span>' : ''}</td><td class="sub">${esc(shortAcct(p.account))}</td><td class="num neg">${fmtMoney(posPnl(p))}</td><td class="num neg">${fmtPct(posPnlPct(p))}</td></tr>`; }).join('')}</table></div>
+      <div class="note-line">Unrealized losses ${fmtMoney(total)}. Not tax advice: the wash-sale rule blocks a loss if you buy the same or a substantially identical holding 30 days before or after selling, in any of your accounts (IRAs included). Mark which accounts are taxable by right-clicking an account at the top.</div>`
+      : '<div class="sub">No losses in taxable accounts. Right-click an account at the top to set its type if this looks wrong.</div>'}`;
+  card.querySelectorAll('tr[data-id]').forEach(r => { r.onclick = () => openPositionById(r.dataset.id); });
+  return card;
+}
+
+// ---------- Manual assets and net worth ----------
+function manualAssetsCard(t) {
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  const assets = state.manualAssets || [];
+  const value = assets.reduce((s, a) => s + num(a.value), 0), owed = assets.reduce((s, a) => s + num(a.owed), 0);
+  card.innerHTML = `
+    <div class="panel-head"><h4 class="panel-title">Other assets and net worth</h4><button id="addAsset" class="primary" style="padding:4px 10px;font-size:calc(12.5px * var(--fs));">+ Add asset</button></div>
+    ${assets.length ? `<table class="mini-table"><tr><th>Asset</th><th>Category</th><th class="num">Value</th><th class="num">Owed</th><th class="num">Equity</th><th class="num">Updated</th></tr>
+      ${assets.map(a => `<tr class="click" data-id="${a.id}" title="${esc(a.notes || 'Right-click for more')}"><td><b>${esc(a.name)}</b></td><td class="sub">${esc(a.category)}</td><td class="num">${fmtMoney(a.value)}</td><td class="num">${num(a.owed) ? fmtMoney(a.owed) : '-'}</td><td class="num">${fmtMoney(num(a.value) - num(a.owed))}</td><td class="num sub">${a.updatedAt ? esc(a.updatedAt) : ''}</td></tr>`).join('')}
+      <tr><td colspan="2"><b>Fidelity total</b></td><td></td><td></td><td class="num"><b>${fmtMoney(t.total)}</b></td><td></td></tr>
+      <tr><td colspan="2"><b>Net worth</b></td><td class="num">${fmtMoney(value + t.total)}</td><td class="num">${owed ? fmtMoney(owed) : '-'}</td><td class="num"><b>${fmtMoney(t.netWorth)}</b></td><td></td></tr></table>
+      <label class="check-row" style="font-size:calc(12px * var(--fs));"><input id="nwBar" type="checkbox" ${state.settings.netWorthInBar ? 'checked' : ''}> Show net worth in the top bar</label>`
+      : '<div class="sub">Add things outside Fidelity, like a 401(k) from another job or your home (with what you still owe on it), to see your total net worth.</div>'}`;
+  card.querySelector('#addAsset').onclick = () => openAssetModal(null);
+  const nw = card.querySelector('#nwBar');
+  if (nw) nw.onchange = () => { state.settings.netWorthInBar = nw.checked; saveState(); renderSummaryBar(); };
+  card.querySelectorAll('tr[data-id]').forEach(r => {
+    const a = assets.find(x => x.id === r.dataset.id);
+    r.onclick = () => openAssetModal(a);
+    r.oncontextmenu = ev => showMenu(ev, [
+      { label: 'Edit...', action: () => openAssetModal(a) },
+      { label: 'Update value...', action: () => openAssetModal(a, true) },
+      '-',
+      { label: 'Delete', danger: true, action: () => deleteAsset(a) }
+    ]);
+  });
+  return card;
+}
+function deleteAsset(a) {
+  const idx = state.manualAssets.findIndex(x => x.id === a.id);
+  if (idx < 0) return;
+  state.manualAssets.splice(idx, 1);
+  takeSnapshot(); saveState(); render();
+  toast('Deleted ' + a.name, { undo: () => { state.manualAssets.splice(idx, 0, a); takeSnapshot(); saveState(); render(); } });
+}
+function openAssetModal(a, focusValue) {
+  const isEdit = !!a;
+  const x = a || { name: '', category: ASSET_CATEGORIES[0], value: '', owed: '', notes: '' };
+  openModal(isEdit ? 'Edit ' + x.name : 'Add an asset', `
+    <div class="form-row-2">
+      <div class="field"><label>Name</label><input id="aName" value="${esc(x.name)}" placeholder="Old job 401(k), Home..." /></div>
+      <div class="field"><label>Category</label><select id="aCat">${ASSET_CATEGORIES.map(c => `<option ${c === x.category ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
+    </div>
+    <div class="form-row-2">
+      <div class="field"><label>Value ($)</label><input id="aVal" type="number" step="any" value="${esc(x.value)}" placeholder="250000" /></div>
+      <div class="field"><label>Owed on it ($, optional)</label><input id="aOwed" type="number" step="any" value="${esc(x.owed || '')}" placeholder="Mortgage or loan balance" /></div>
+    </div>
+    <div class="field"><label>Notes</label><input id="aNotes" value="${esc(x.notes || '')}" placeholder="Where the value comes from" /></div>`,
+    `<button id="mCancel" class="quiet">Cancel</button><button id="mSave" class="primary">${isEdit ? 'Save' : 'Add'}</button>`);
+  setTimeout(() => { const f = mBody.querySelector(focusValue ? '#aVal' : '#aName'); f.focus(); f.select && f.select(); }, 0);
+  mFoot.querySelector('#mCancel').onclick = closeModal;
+  const save = () => {
+    const name = mBody.querySelector('#aName').value.trim();
+    const value = parseFloat(mBody.querySelector('#aVal').value);
+    if (!name || isNaN(value)) { toast('Enter a name and a value'); return; }
+    const owed = parseFloat(mBody.querySelector('#aOwed').value);
+    const rec = { name, category: mBody.querySelector('#aCat').value, value, owed: isNaN(owed) ? 0 : owed, notes: mBody.querySelector('#aNotes').value.trim(), updatedAt: todayStr() };
+    if (isEdit) Object.assign(a, rec); else state.manualAssets.push(Object.assign({ id: uid() }, rec));
+    takeSnapshot(); saveState(); closeModal(); render();
+  };
+  mFoot.querySelector('#mSave').onclick = save;
+  mBody.onkeydown = e => { if (e.key === 'Enter') save(); };
+}
+
+// ---------- 1.0 breakdowns ----------
+function breakdowns(list, totals) {
+  const maxStock = num(state.settings.maxStockPct) || 10, maxSector = num(state.settings.maxSectorPct) || 30;
+  const base = totals.weightBase;
+  const byTicker = new Map(), bySector = new Map(), byTheme = new Map(), byAccount = new Map();
+  list.forEach(p => {
+    const v = posValue(p);
+    byTicker.set(p.ticker, (byTicker.get(p.ticker) || 0) + v);
+    const sec = p.sector || (p.isEtf ? 'ETF / broad market' : 'Unassigned');
+    bySector.set(sec, (bySector.get(sec) || 0) + v);
+    byAccount.set(shortAcct(p.account || 'Main'), (byAccount.get(shortAcct(p.account || 'Main')) || 0) + v);
+    (p.tags || []).forEach(t => byTheme.set(t, (byTheme.get(t) || 0) + v));
+  });
+  const toSorted = m => Array.from(m.entries()).map(([k, v]) => ({ label: k, val: v, pct: base > 0 ? (v / base) * 100 : 0 })).sort((a, b) => b.val - a.val);
+  const top = toSorted(byTicker);
+  const top5 = top.slice(0, 5).reduce((s, x) => s + x.pct, 0);
+  const section = (title, subtitle, items, cap) => {
+    const card = document.createElement('div');
+    card.className = 'panel-card';
+    card.innerHTML = `<div class="panel-head"><h4 class="panel-title">${esc(title)}</h4><span class="sub" style="font-size:calc(11.5px * var(--fs));">${esc(subtitle)}</span></div><div class="sec-body" style="display:flex;flex-direction:column;gap:7px;"></div>`;
+    const body = card.querySelector('.sec-body');
+    if (!items.length) { body.innerHTML = '<div class="sub">No data yet.</div>'; return card; }
+    const scale = Math.max(25, items[0].pct * 1.1);
+    items.slice(0, 10).forEach(it => {
+      const over = cap && it.pct > cap;
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      row.innerHTML = `<div class="bar-row-head"><div style="display:flex;align-items:center;gap:6px;"><strong>${esc(it.label)}</strong>${over ? `<span class="badge warn">Over ${cap}%</span>` : ''}</div><span class="sub" style="font-family:var(--mono);">${it.pct.toFixed(1)}% (${fmtMoneyShort(it.val)})</span></div><div class="bar-track"><div class="${over ? 'bar-fill-warn' : 'bar-fill-etf'}" style="width:${(it.pct / scale) * 100}%"></div></div>`;
+      body.appendChild(row);
+    });
+    return card;
+  };
+  const grid = document.createElement('div');
+  grid.className = 'overview-grid';
+  grid.appendChild(section('Sector exposure', 'Limit: ' + maxSector + '% max', toSorted(bySector), maxSector));
+  grid.appendChild(section('Top combined holdings', 'Top 5 = ' + top5.toFixed(1) + '% · Limit: ' + maxStock + '%', top, maxStock));
+  grid.appendChild(section('Theme tags', 'Tagged across stocks and ETFs', toSorted(byTheme), null));
+  grid.appendChild(section('Holdings by account', 'Without cash', toSorted(byAccount), null));
+  return grid;
+}
+
+/* ---- 43-lists.js ---- */
+/* Watchlist, Closed (from 1.0) and the Options list (0.1). */
+function renderWatchlistView(ws) {
+  const full = document.createElement('div');
+  full.className = 'pane-full';
+  ws.appendChild(full);
+
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  card.innerHTML = `
+    <div class="panel-head">
+      <h4 class="panel-title">Watchlist (${state.watchlist.length})</h4>
+      <button id="btnAddWatch" class="primary" style="padding:4px 10px;font-size:calc(12px * var(--fs));">+ Add to Watchlist</button>
+    </div>
+    <div id="watchTableWrap"></div>
+  `;
+  full.appendChild(card);
+
+  card.querySelector('#btnAddWatch').onclick = () => openWatchModal(null);
+
+  const wrap = card.querySelector('#watchTableWrap');
+  if (state.watchlist.length === 0) {
+    wrap.innerHTML = `<div class="tome-empty" style="padding:24px;text-align:center;">No stocks on your watchlist yet.</div>`;
+    return;
+  }
+
+  const tbl = document.createElement('table');
+  tbl.className = 'data-table';
+  tbl.innerHTML = `
+    <thead>
+      <tr>
+        <th>Ticker</th>
+        <th>Name</th>
+        <th class="num">Current</th>
+        <th class="num">Target Buy</th>
+        <th>Buy Trigger / Notes</th>
+        <th style="width:120px;"></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = tbl.querySelector('tbody');
+  state.watchlist.forEach(w => {
+    const cur = Number(w.currentPrice) || 0;
+    const tgt = Number(w.targetBuy) || 0;
+    const inZone = cur > 0 && tgt > 0 && cur <= tgt;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><strong>${esc(w.ticker)}</strong> ${inZone ? '<span class="badge hold">In Zone</span>' : ''}</td>
+      <td class="sub">${esc(w.name || '')}</td>
+      <td class="num">${cur > 0 ? fmtMoney(cur) : '-'}</td>
+      <td class="num">${tgt > 0 ? fmtMoney(tgt) : '-'}</td>
+      <td>${esc(w.notes || '')}</td>
+      <td style="text-align:right;">
+        <button class="quiet btn-buy" style="padding:3px 8px;font-size:calc(11.5px * var(--fs));">Buy</button>
+      </td>
+    `;
+    tr.querySelector('.btn-buy').onclick = () => moveWatchToPosition(w);
+    tr.oncontextmenu = (ev) => {
+      showMenu(ev, [
+        { label: 'Move to Positions (Buy)', action: () => moveWatchToPosition(w) },
+        { label: 'Edit', action: () => openWatchModal(w) },
+        { label: 'Research', items: buildResearchMenuItems(w.ticker, false) },
+        '-',
+        { label: 'Delete', danger: true, confirm: true, action: () => deleteWatchItem(w) }
+      ]);
+    };
+    tbody.appendChild(tr);
+  });
+  wrap.appendChild(tbl);
+}
+
+// ==================== CLOSED TRADES VIEW ====================
+function renderClosedView(ws) {
+  const full = document.createElement('div');
+  full.className = 'pane-full';
+  ws.appendChild(full);
+
+  const totalRealized = state.closed.reduce((s, c) => s + ((Number(c.sellPrice) - Number(c.avgCost)) * Number(c.shares)), 0);
+
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  card.innerHTML = `
+    <div class="panel-head">
+      <h4 class="panel-title">Closed Positions (${state.closed.length})</h4>
+      <div class="metric-item">
+        <span class="sub">Realized P&amp;L:</span>
+        <span class="metric-val ${totalRealized >= 0 ? 'pos' : 'neg'}">${totalRealized >= 0 ? '+' : ''}${fmtMoney(totalRealized)}</span>
+      </div>
+    </div>
+    <div id="closedWrap"></div>
+  `;
+  full.appendChild(card);
+
+  const wrap = card.querySelector('#closedWrap');
+  if (state.closed.length === 0) {
+    wrap.innerHTML = `<div class="tome-empty" style="padding:24px;text-align:center;">No closed positions yet. Right-click any active position and choose "Close position" to log a sale and lesson learned.</div>`;
+    return;
+  }
+
+  const tbl = document.createElement('table');
+  tbl.className = 'data-table';
+  tbl.innerHTML = `
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Ticker</th>
+        <th>Account</th>
+        <th class="num">Shares</th>
+        <th class="num">Avg Cost</th>
+        <th class="num">Sell Price</th>
+        <th class="num">Realized P&amp;L</th>
+        <th>Lesson Learned</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = tbl.querySelector('tbody');
+  state.closed.forEach(c => {
+    const pnl = (Number(c.sellPrice) - Number(c.avgCost)) * Number(c.shares);
+    const cost = Number(c.avgCost) * Number(c.shares);
+    const pct = cost > 0 ? (pnl / cost) * 100 : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-family:var(--mono);font-size:calc(11.5px * var(--fs));">${esc(c.closeDate)}</td>
+      <td><strong>${esc(c.ticker)}</strong></td>
+      <td class="sub">${esc(c.account || 'Main')}</td>
+      <td class="num">${Number(c.shares)}</td>
+      <td class="num">${fmtMoney(c.avgCost)}</td>
+      <td class="num">${fmtMoney(c.sellPrice)}</td>
+      <td class="num" style="color:${pnl >= 0 ? 'var(--ok)' : 'var(--late)'};">${pnl >= 0 ? '+' : ''}${fmtMoney(pnl)} (${fmtPct(pct, true)})</td>
+      <td>${esc(c.lesson || '')}</td>
+    `;
+    tr.oncontextmenu = (ev) => {
+      showMenu(ev, [
+        { label: 'Delete entry', danger: true, confirm: true, action: () => {
+          const snap = c;
+          state.closed = state.closed.filter(x => x.id !== c.id);
+          saveState(); render();
+          toast(`Deleted closed ${snap.ticker} record`, {
+            undo: () => { state.closed.unshift(snap); saveState(); render(); }
+          });
+        }}
+      ]);
+    };
+    tbody.appendChild(tr);
+  });
+  wrap.appendChild(tbl);
+}
+
+// ==================== OPTIONS VIEW ====================
+function renderOptionsView(ws) {
+  const full = document.createElement('div');
+  full.className = 'pane-full';
+  ws.appendChild(full);
+  const rows = (state.openOptions || []).filter(o => inAccount(o.account));
+  const value = rows.reduce((s, o) => s + num(o.value), 0), cost = rows.reduce((s, o) => s + num(o.cost), 0);
+  const card = document.createElement('div');
+  card.className = 'panel-card';
+  card.innerHTML = `
+    <div class="panel-head"><h4 class="panel-title">Open options (${rows.length})</h4>
+      <div class="metric-item"><span class="sub">Value</span><span class="metric-val">${fmtMoney(value)}</span><span class="sub">P&amp;L</span><span class="metric-val ${cls(value - cost)}">${fmtSigned(value - cost)}</span></div></div>
+    ${rows.length ? `<table class="data-table"><thead><tr><th>Contract</th><th>Account</th><th class="num">Qty</th><th class="num">Value</th><th class="num">Cost</th><th class="num">P&amp;L</th></tr></thead><tbody>
+      ${rows.map(o => `<tr><td><strong>${esc(o.desc || o.symbol)}</strong> <span class="sub mono" style="font-size:calc(11px * var(--fs));">${esc(o.symbol)}</span></td><td class="sub">${esc(shortAcct(o.account))}</td><td class="num">${num(o.qty)}</td><td class="num">${fmtMoney(o.value)}</td><td class="num">${o.cost ? fmtMoney(o.cost) : '-'}</td><td class="num ${cls(num(o.value) - num(o.cost))}">${o.cost ? fmtSigned(num(o.value) - num(o.cost)) : '-'}</td></tr>`).join('')}
+    </tbody></table>` : '<div class="tome-empty">No open options in your last import.</div>'}
+    <div class="note-line">From your last Fidelity import. Their value is counted in each account's total. A full options tracker (premiums, rolls, net cost basis) is planned.</div>`;
+  full.appendChild(card);
+}
+
+/* ---- 50-modals.js ---- */
+/* Right-click menus and windows (from 1.0, with 0.1 additions). */
+function buildResearchMenuItems(ticker, isEtf) {
+  const links = (state.settings.researchLinks && state.settings.researchLinks.length)
+    ? state.settings.researchLinks
+    : DEFAULT_RESEARCH_LINKS;
+  return links
+    .filter(l => !l.etfOnly || isEtf)
+    .map(l => ({
+      label: l.label,
+      action: () => openUrl(l.url.replace(/\{TICKER\}/gi, encodeURIComponent(ticker.toUpperCase())))
+    }));
+}
+
+function openPositionContextMenu(ev, p) {
+  const items = [
+    ...(!p.isEtf ? [{ label: 'Open details', action: () => openPositionById(p.id) }] : []),
+    ...(canQuote(p) ? [{ label: 'Refresh price', action: () => refreshSingleQuote(p) }] : []),
+    { label: 'Set target or stop...', action: () => { if (p.isEtf) { openPositionModal(p, true); return; } openPositionById(p.id); setTimeout(() => { const t = document.getElementById('planTarget'); if (t) { t.scrollIntoView({ block: 'center' }); t.focus(); } }, 50); } },
+    { label: 'Copy value (' + fmtMoney(posValue(p)) + ')', action: () => { if (hasTome && tome.copy) tome.copy(posValue(p).toFixed(2)); toast('Copied'); } },
+    { label: 'Mark reviewed today', action: () => { p.lastReviewed = todayStr(); saveState(); toast(`Reviewed ${p.ticker}`); render(); } },
+    { label: 'Edit position', action: () => openPositionModal(p, p.isEtf) },
+    ...(p.isEtf ? [{ label: 'Edit ETF holdings & fee', action: () => openEtfHoldingsModal(p) }] : []),
+    { label: 'Research', items: buildResearchMenuItems(p.ticker, p.isEtf) },
+    '-',
+    { label: p.isEtf ? 'Move to Individual Stocks' : 'Move to ETFs Bucket', action: () => {
+      p.isEtf = !p.isEtf;
+      saveState();
+      toast(`Moved ${p.ticker} to ${p.isEtf ? 'ETFs' : 'Positions'}`);
+      render();
+    }},
+    { label: 'Close position...', action: () => openClosePositionModal(p) },
+    '-',
+    { label: 'Delete', danger: true, confirm: true, action: () => deletePosition(p) }
+  ];
+  showMenu(ev, items);
+}
+
+function deletePosition(p) {
+  const idx = state.positions.findIndex(x => x.id === p.id);
+  if (idx < 0) return;
+  const removed = state.positions.splice(idx, 1)[0];
+  saveState();
+  render();
+  toast(`Deleted ${removed.ticker}`, {
+    undo: () => {
+      state.positions.splice(idx, 0, removed);
+      saveState();
+      render();
+    }
+  });
+}
+
+function deleteWatchItem(w) {
+  const idx = state.watchlist.findIndex(x => x.id === w.id);
+  if (idx < 0) return;
+  const removed = state.watchlist.splice(idx, 1)[0];
+  saveState();
+  render();
+  toast(`Removed ${removed.ticker} from watchlist`, {
+    undo: () => {
+      state.watchlist.splice(idx, 0, removed);
+      saveState();
+      render();
+    }
+  });
+}
+
+// ==================== MODALS ====================
+const backdrop = document.getElementById('modalBackdrop');
+const mTitle = document.getElementById('modalTitle');
+const mBody = document.getElementById('modalBody');
+const mFoot = document.getElementById('modalFoot');
+
+function openModal(title, bodyHtml, footHtml, wide) {
+  mBody.onkeydown = null;
+  backdrop.querySelector('.modal-box').classList.toggle('wide', !!wide);
+  mTitle.textContent = title;
+  mBody.innerHTML = bodyHtml;
+  mFoot.innerHTML = footHtml;
+  backdrop.classList.add('open');
+}
+function closeModal() {
+  backdrop.classList.remove('open');
+  mBody.onkeydown = null;
+  mBody.innerHTML = '';
+  mFoot.innerHTML = '';
+}
+document.getElementById('modalClose').onclick = closeModal;
+backdrop.onclick = (e) => { if (e.target === backdrop) closeModal(); };
+
+function openPositionModal(existing, defaultIsEtf) {
+  const isEdit = !!existing;
+  const p = existing || {
+    ticker: '', name: '', account: ui.account !== 'ALL' ? ui.account : 'Brokerage',
+    shares: '', avgCost: '', currentPrice: '', sector: '', isEtf: !!defaultIsEtf,
+    expenseRatio: '', tags: []
+  };
+  const accounts = getAccounts();
+  openModal(
+    isEdit ? `Edit ${p.ticker}` : (defaultIsEtf ? 'Add ETF' : 'Add Stock Position'),
+    `
+      <div class="form-row-2">
+        <div class="field">
+          <label>Ticker</label>
+          <input id="fTicker" value="${esc(p.ticker)}" placeholder="NVDA" style="text-transform:uppercase;" />
+        </div>
+        <div class="field">
+          <label>Account</label>
+          <input id="fAccount" list="acctDatalist" value="${esc(p.account)}" placeholder="Brokerage, Roth IRA..." />
+          <datalist id="acctDatalist">${accounts.map(a => `<option value="${esc(a)}">`).join('')}</datalist>
+        </div>
+      </div>
+      <div class="field">
+        <label>Company / Fund Name</label>
+        <input id="fName" value="${esc(p.name)}" placeholder="NVIDIA Corp" />
+      </div>
+      <div class="form-row-3">
+        <div class="field">
+          <label>Shares</label>
+          <input id="fShares" type="number" step="any" value="${esc(p.shares)}" placeholder="100" />
+        </div>
+        <div class="field">
+          <label>Avg Cost ($)</label>
+          <input id="fAvg" type="number" step="any" value="${esc(p.avgCost)}" placeholder="98.50" />
+        </div>
+        <div class="field">
+          <label>Current Price ($)</label>
+          <input id="fPrice" type="number" step="any" value="${esc(p.currentPrice)}" placeholder="Optional" />
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="field">
+          <label>Sector</label>
+          <input id="fSector" value="${esc(p.sector)}" placeholder="Technology, Healthcare..." />
+        </div>
+        <div class="field">
+          <label>Expense Ratio % (ETFs)</label>
+          <input id="fEr" type="number" step="any" value="${esc(p.expenseRatio != null ? p.expenseRatio : '')}" placeholder="0.03" />
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="field">
+          <label>Target price ($, optional)</label>
+          <input id="fTarget" type="number" step="any" value="${esc(p.targetPrice || '')}" placeholder="Where you'd trim or sell" />
+        </div>
+        <div class="field">
+          <label>Stop price ($, optional)</label>
+          <input id="fStop" type="number" step="any" value="${esc(p.stopPrice || '')}" placeholder="Where the thesis is wrong" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Theme Tags (comma separated)</label>
+        <input id="fTags" value="${esc((p.tags || []).join(', '))}" placeholder="AI, Semis, Dividends" />
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input id="fIsEtf" type="checkbox" ${p.isEtf ? 'checked' : ''} />
+        <span>Track in ETFs Bucket</span>
+      </label>
+    `,
+    `
+      <button id="mCancel" class="quiet">Cancel</button>
+      <button id="mSave" class="primary">${isEdit ? 'Save Changes' : 'Add Position'}</button>
+    `
+  );
+
+  const tickerInp = mBody.querySelector('#fTicker');
+  setTimeout(() => tickerInp.focus(), 0);
+
+  mFoot.querySelector('#mCancel').onclick = closeModal;
+  const doSave = async () => {
+    const ticker = tickerInp.value.trim().toUpperCase();
+    const shares = parseFloat(mBody.querySelector('#fShares').value);
+    const avgCost = parseFloat(mBody.querySelector('#fAvg').value);
+    if (!ticker || isNaN(shares) || isNaN(avgCost)) {
+      toast('Enter ticker, shares, and average cost');
+      return;
+    }
+    const curPx = parseFloat(mBody.querySelector('#fPrice').value);
+    const erVal = mBody.querySelector('#fEr').value.trim();
+    const tags = mBody.querySelector('#fTags').value.split(',').map(s => s.trim()).filter(Boolean);
+    const acct = mBody.querySelector('#fAccount').value.trim() || 'Brokerage';
+    const isEtf = mBody.querySelector('#fIsEtf').checked;
+    const tgtVal = parseFloat(mBody.querySelector('#fTarget').value);
+    const stopVal = parseFloat(mBody.querySelector('#fStop').value);
+
+    if (isEdit) {
+      p.ticker = ticker;
+      p.account = acct;
+      p.name = mBody.querySelector('#fName').value.trim();
+      p.shares = shares;
+      p.avgCost = avgCost;
+      p.currentPrice = !isNaN(curPx) ? curPx : p.currentPrice;
+      p.sector = mBody.querySelector('#fSector').value.trim();
+      p.expenseRatio = erVal !== '' ? parseFloat(erVal) : null;
+      p.tags = tags;
+      p.isEtf = isEtf;
+      p.targetPrice = tgtVal > 0 ? tgtVal : null;
+      p.stopPrice = stopVal > 0 ? stopVal : null;
+    } else {
+      const newPos = {
+        id: uid(),
+        ticker,
+        name: mBody.querySelector('#fName').value.trim(),
+        account: acct,
+        shares,
+        avgCost,
+        currentPrice: !isNaN(curPx) ? curPx : avgCost,
+        sector: mBody.querySelector('#fSector').value.trim(),
+        tags,
+        isEtf,
+        expenseRatio: erVal !== '' ? parseFloat(erVal) : null,
+        targetPrice: tgtVal > 0 ? tgtVal : null,
+        stopPrice: stopVal > 0 ? stopVal : null,
+        thesis: [],
+        exitStrategy: '',
+        decisionLog: [{ id: uid(), date: todayStr(), note: `Opened position: ${shares} shares @ ${fmtMoney(avgCost)}` }],
+        lastReviewed: todayStr(),
+        manualStatus: null,
+        netOptionPremium: 0
+      };
+      state.positions.push(newPos);
+      ui.selectedId = newPos.id;
+      if (!newPos.sector && !isEtf && state.settings.finnhubKey) {
+        fetchFinnhubProfile(newPos);
+      }
+      if (isNaN(curPx) && (state.settings.finnhubKey || state.settings.customQuoteUrl)) {
+        refreshSingleQuote(newPos);
+      }
+    }
+    await saveState();
+    closeModal();
+    render();
+  };
+  mFoot.querySelector('#mSave').onclick = doSave;
+  mBody.onkeydown = (e) => { if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') doSave(); };
+}
+
+function openClosePositionModal(p) {
+  openModal(
+    `Close ${p.ticker} (${p.account})`,
+    `
+      <div class="sub">Records realized P&amp;L and moves ${esc(p.ticker)} to the Closed tab.</div>
+      <div class="form-row-2">
+        <div class="field">
+          <label>Shares Sold</label>
+          <input id="cShares" type="number" step="any" value="${Number(p.shares)}" />
+        </div>
+        <div class="field">
+          <label>Sell Price ($)</label>
+          <input id="cPrice" type="number" step="any" value="${Number(p.currentPrice || p.avgCost)}" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Close Date</label>
+        <input id="cDate" type="date" value="${todayStr()}" />
+      </div>
+      <div class="field">
+        <label>Lesson Learned / Why I Exited</label>
+        <textarea id="cLesson" rows="3" placeholder="Hit trim target, thesis broke, consolidated ETF..."></textarea>
+      </div>
+    `,
+    `
+      <button id="mCancel" class="quiet">Cancel</button>
+      <button id="mConfirm" class="primary">Close Position</button>
+    `
+  );
+  mFoot.querySelector('#mCancel').onclick = closeModal;
+  mFoot.querySelector('#mConfirm').onclick = () => {
+    const sh = parseFloat(mBody.querySelector('#cShares').value);
+    const sp = parseFloat(mBody.querySelector('#cPrice').value);
+    if (isNaN(sh) || sh <= 0 || isNaN(sp)) { toast('Enter valid shares and sell price'); return; }
+    state.closed.unshift({
+      id: uid(),
+      ticker: p.ticker,
+      name: p.name,
+      account: p.account,
+      shares: sh,
+      avgCost: p.avgCost,
+      sellPrice: sp,
+      closeDate: mBody.querySelector('#cDate').value || todayStr(),
+      lesson: mBody.querySelector('#cLesson').value.trim()
+    });
+    if (sh >= Number(p.shares)) {
+      state.positions = state.positions.filter(x => x.id !== p.id);
+    } else {
+      p.shares = Number(p.shares) - sh;
+      if (!p.decisionLog) p.decisionLog = [];
+      p.decisionLog.unshift({ id: uid(), date: todayStr(), note: `Trimmed ${sh} shares @ ${fmtMoney(sp)}` });
+    }
+    saveState();
+    closeModal();
+    toast(`Closed ${sh} shares of ${p.ticker}`);
+    render();
+  };
+}
+
+function openWatchModal(existing) {
+  const w = existing || { ticker: '', name: '', currentPrice: '', targetBuy: '', notes: '' };
+  openModal(
+    existing ? `Edit Watchlist: ${w.ticker}` : 'Add to Watchlist',
+    `
+      <div class="form-row-2">
+        <div class="field">
+          <label>Ticker</label>
+          <input id="wTicker" value="${esc(w.ticker)}" style="text-transform:uppercase;" placeholder="COST" />
+        </div>
+        <div class="field">
+          <label>Name</label>
+          <input id="wName" value="${esc(w.name)}" placeholder="Costco Wholesale" />
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="field">
+          <label>Current Price ($)</label>
+          <input id="wCur" type="number" step="any" value="${esc(w.currentPrice)}" placeholder="Optional" />
+        </div>
+        <div class="field">
+          <label>Target Buy Price ($)</label>
+          <input id="wTgt" type="number" step="any" value="${esc(w.targetBuy)}" placeholder="800.00" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Buy Trigger / Notes</label>
+        <textarea id="wNotes" rows="3" placeholder="Wait for pullback below 40x P/E...">${esc(w.notes)}</textarea>
+      </div>
+    `,
+    `
+      <button id="mCancel" class="quiet">Cancel</button>
+      <button id="mSave" class="primary">Save</button>
+    `
+  );
+  setTimeout(() => mBody.querySelector('#wTicker').focus(), 0);
+  mFoot.querySelector('#mCancel').onclick = closeModal;
+  mFoot.querySelector('#mSave').onclick = () => {
+    const ticker = mBody.querySelector('#wTicker').value.trim().toUpperCase();
+    if (!ticker) { toast('Enter a ticker'); return; }
+    const cur = parseFloat(mBody.querySelector('#wCur').value);
+    const tgt = parseFloat(mBody.querySelector('#wTgt').value);
+    if (existing) {
+      w.ticker = ticker;
+      w.name = mBody.querySelector('#wName').value.trim();
+      w.currentPrice = isNaN(cur) ? '' : cur;
+      w.targetBuy = isNaN(tgt) ? '' : tgt;
+      w.notes = mBody.querySelector('#wNotes').value.trim();
+    } else {
+      state.watchlist.push({
+        id: uid(),
+        ticker,
+        name: mBody.querySelector('#wName').value.trim(),
+        currentPrice: isNaN(cur) ? '' : cur,
+        targetBuy: isNaN(tgt) ? '' : tgt,
+        notes: mBody.querySelector('#wNotes').value.trim()
+      });
+    }
+    saveState();
+    closeModal();
+    render();
+  };
+}
+
+function moveWatchToPosition(w) {
+  openModal(
+    `Buy ${w.ticker} (Move to Positions)`,
+    `
+      <div class="form-row-2">
+        <div class="field">
+          <label>Account</label>
+          <input id="bAcct" value="${ui.account !== 'ALL' ? esc(ui.account) : 'Brokerage'}" />
+        </div>
+        <div class="field">
+          <label>Shares</label>
+          <input id="bShares" type="number" step="any" placeholder="50" />
+        </div>
+      </div>
+      <div class="form-row-2">
+        <div class="field">
+          <label>Buy Price ($)</label>
+          <input id="bPrice" type="number" step="any" value="${esc(w.currentPrice || w.targetBuy || '')}" />
+        </div>
+        <div class="field">
+          <label>Sector</label>
+          <input id="bSector" placeholder="Optional" />
+        </div>
+      </div>
+    `,
+    `
+      <button id="mCancel" class="quiet">Cancel</button>
+      <button id="mBuy" class="primary">Move to Positions</button>
+    `
+  );
+  mFoot.querySelector('#mCancel').onclick = closeModal;
+  mFoot.querySelector('#mBuy').onclick = () => {
+    const sh = parseFloat(mBody.querySelector('#bShares').value);
+    const px = parseFloat(mBody.querySelector('#bPrice').value);
+    if (isNaN(sh) || sh <= 0 || isNaN(px)) { toast('Enter shares and buy price'); return; }
+    const np = {
+      id: uid(),
+      ticker: w.ticker,
+      name: w.name,
+      account: mBody.querySelector('#bAcct').value.trim() || 'Brokerage',
+      shares: sh,
+      avgCost: px,
+      currentPrice: Number(w.currentPrice) || px,
+      sector: mBody.querySelector('#bSector').value.trim(),
+      tags: [],
+      isEtf: KNOWN_ETFS.has(w.ticker),
+      expenseRatio: null,
+      thesis: w.notes ? [{ id: uid(), text: w.notes, checked: true }] : [],
+      exitStrategy: '',
+      decisionLog: [{ id: uid(), date: todayStr(), note: `Bought from watchlist: ${sh} shares @ ${fmtMoney(px)}` }],
+      lastReviewed: todayStr(),
+      manualStatus: null,
+      netOptionPremium: 0
+    };
+    state.positions.push(np);
+    state.watchlist = state.watchlist.filter(x => x.id !== w.id);
+    ui.view = np.isEtf ? 'etfs' : 'positions';
+    ui.selectedId = np.id;
+    saveState();
+    closeModal();
+    toast(`Moved ${w.ticker} to ${np.isEtf ? 'ETFs' : 'Positions'}`);
+    render();
+  };
+}
+
+function openEtfHoldingsModal(p) {
+  const cache = state.etfCache[p.ticker] || { holdings: [], expenseRatio: null, updatedAt: null };
+  const lines = (cache.holdings || []).map(h => `${h.symbol}, ${Number(h.weight).toFixed(2)}`).join('\n');
+  const er = p.expenseRatio != null ? p.expenseRatio : (cache.expenseRatio != null ? cache.expenseRatio : '');
+
+  openModal(
+    `${p.ticker} Holdings & Expense Ratio`,
+    `
+      <div class="form-row-2">
+        <div class="field">
+          <label>Expense Ratio (%)</label>
+          <input id="eEr" type="number" step="any" value="${esc(er)}" placeholder="0.03" />
+        </div>
+        <div class="field">
+          <label>Cached Status</label>
+          <div class="sub" style="padding-top:6px;">${cache.updatedAt ? 'Updated ' + cache.updatedAt : 'Not fetched yet'}</div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Top Holdings (one per line: TICKER, WEIGHT%)</label>
+        <textarea id="eHoldings" rows="9" style="font-family:var(--mono);font-size:calc(12px * var(--fs));" placeholder="NVDA, 7.1&#10;MSFT, 6.5&#10;AAPL, 6.2">${esc(lines)}</textarea>
+      </div>
+    `,
+    `
+      <button id="mFetchAv" class="quiet" style="margin-right:auto;">Fetch via Alpha Vantage</button>
+      <button id="mCancel" class="quiet">Cancel</button>
+      <button id="mSave" class="primary">Save Holdings</button>
+    `
+  );
+
+  mFoot.querySelector('#mCancel').onclick = closeModal;
+  mFoot.querySelector('#mFetchAv').onclick = async () => {
+    const ok = await fetchAlphaVantageEtf(p.ticker);
+    if (ok) { closeModal(); render(); }
+  };
+  mFoot.querySelector('#mSave').onclick = () => {
+    const erVal = mBody.querySelector('#eEr').value.trim();
+    p.expenseRatio = erVal !== '' ? parseFloat(erVal) : null;
+    const raw = mBody.querySelector('#eHoldings').value.split('\n');
+    const parsed = [];
+    raw.forEach(line => {
+      const parts = line.split(/[,\t]+/).map(s => s.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        const sym = parts[0].toUpperCase();
+        const wt = parseFloat(parts[1].replace('%', ''));
+        if (sym && !isNaN(wt) && wt > 0) parsed.push({ symbol: sym, weight: wt });
+      }
+    });
+    state.etfCache[p.ticker] = {
+      expenseRatio: p.expenseRatio,
+      holdings: parsed,
+      updatedAt: todayStr()
+    };
+    saveState();
+    closeModal();
+    toast(`Saved ${parsed.length} holdings for ${p.ticker}`);
+    render();
+  };
+}
+
+
+/* ---- 55-whatsnew.js ---- */
+/* What's new: shown once the first time Stocks Hub opens after an update (per PC: seenVersion isn't synced),
+   and any time from Settings. ADDON comes from CHANGES.md at build time. */
+const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+function openWhatsNew(since) {
+  const all = ADDON.changes || [];
+  const pick = since ? all.filter(c => newer(c.version, since)) : all.slice(0, 2);
+  const list = (pick.length ? pick : all.slice(0, 1)).map(c => `<h4 class="wn-head">${esc(c.version)}${c.date ? ' <span class="muted">' + esc(c.date) + '</span>' : ''}</h4>
+    <ul class="wn-list">${c.lines.map(l => '<li>' + esc(l) + '</li>').join('')}</ul>`).join('');
+  openModal("What's new in Stocks Hub", '<div class="wn">' + (list || '<p>No notes for this version.</p>') + '</div>',
+    '<button id="mCancel" class="primary">Got it</button>', true);
+  mFoot.querySelector('#mCancel').onclick = closeModal;
+}
+function maybeWhatsNew() {
+  if (hasTome && tome.preview) return;
+  const seen = state.seenVersion;
+  if (seen === ADDON.version) return;
+  const upgraded = seen ? seen !== ADDON.version : state.positions.length > 0;   // before 0.3 nothing was recorded
+  state.seenVersion = ADDON.version;
+  saveState();
+  if (upgraded && (ADDON.changes || []).length) openWhatsNew(seen);
+}
+
+/* ---- 60-settings.js ---- */
+/* Settings: four tabs so the window never needs scrolling. */
+function openSettingsModal(tab) {
+  const s = state.settings;
+  const linkLines = (s.researchLinks || DEFAULT_RESEARCH_LINKS).map(l => l.label + ' | ' + l.url + (l.etfOnly ? ' | etf' : '')).join('\n');
+  const a = apiDay();
+  openModal('Stocks Hub settings', `
+    <div class="tabs">${[['data', 'Prices and calls'], ['look', 'Display'], ['limits', 'Limits and reminders'], ['backup', 'Backup and links']].map(t => `<button class="pill" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div>
+
+    <div class="tab-panel" data-panel="data">
+      <div class="api-meter"><span>Calls today: <b id="sCalls">${a.finnhub + a.av}</b> of <b>${num(s.dailyCallLimit) || 150}</b></span><span>Finnhub <b>${a.finnhub}</b></span><span>Alpha Vantage <b>${a.av}</b> of 25</span></div>
+      <div class="form-row-2">
+        <div class="field"><label>Finnhub key (prices, earnings, news)</label><input id="sFinnhub" type="password" value="${esc(s.finnhubKey || '')}" placeholder="Free key from finnhub.io" /></div>
+        <div class="field"><label>Alpha Vantage key (charts, ETF holdings)</label><input id="sAv" type="password" value="${esc(s.alphaVantageKey || '')}" placeholder="Free key from alphavantage.co" /></div>
+      </div>
+      <div class="form-row-3">
+        <div class="field"><label>Refresh prices</label><select id="sRefHours">
+          ${[[0, 'By hand only'], [1, 'Every hour'], [2, 'Every 2 hours'], [4, 'Every 4 hours'], [8, 'Every 8 hours']].map(o => `<option value="${o[0]}" ${num(s.refreshHours) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></div>
+        <div class="field"><label>Daily call limit</label><input id="sLimit" type="number" min="10" value="${num(s.dailyCallLimit) || 150}" /></div>
+        <div class="field"><label>Custom quote address (optional)</label><input id="sCustomUrl" value="${esc(s.customQuoteUrl || '')}" placeholder="http://pi.local:8080/quote?symbol={TICKER}" /></div>
+      </div>
+      <label class="check-row"><input id="sMarket" type="checkbox" ${s.marketHoursOnly ? 'checked' : ''}> Refresh by itself only while the US market is open</label>
+      <label class="check-row"><input id="sAutoChart" type="checkbox" ${s.autoChart ? 'checked' : ''}> Load a stock's price chart when I open it (1 call, then saved for a day)</label>
+      <label class="check-row"><input id="sAutoNews" type="checkbox" ${s.autoNews ? 'checked' : ''}> Load earnings and headlines when I open a stock (2 calls, then saved for a day)</label>
+      <div class="hint">To use Stocks Hub on more than one PC: in Tome, Settings, Sync, click Sync... next to Stocks Hub and tick your PCs. Positions, notes, prices, cash and these keys sync; each PC keeps its own call limit, auto refresh, and saved charts and news. A PC set to refresh by hand still gets the prices another PC fetched.</div>
+      <div class="hint">Stocks Hub only contacts finnhub.io and alphavantage.co (or your custom address). A full refresh is one call per ticker you hold (${quoteTickers().length} now), sent one a second. Today's movers come from those same replies. Nothing is sent until you add a key.</div>
+    </div>
+
+    <div class="tab-panel" data-panel="look" hidden>
+      <div class="field"><label>Text size</label><div class="chip-row">${[['s', 'Small'], ['m', 'Medium'], ['l', 'Large']].map(o => `<button class="pill ${(s.fontSize || 'm') === o[0] ? 'on' : ''}" data-size="${o[0]}">${o[1]}</button>`).join('')}</div></div>
+      <div class="field"><label>Position weights are a share of</label><div class="chip-row">
+        <button class="pill ${s.weightBase !== 'total' ? 'on' : ''}" data-wb="invested">What I have invested (no cash)</button>
+        <button class="pill ${s.weightBase === 'total' ? 'on' : ''}" data-wb="total">The total, cash included</button></div></div>
+      <label class="check-row"><input id="sNwBar" type="checkbox" ${s.netWorthInBar ? 'checked' : ''}> Show net worth in the top bar (once you add other assets in Overview)</label>
+    </div>
+
+    <div class="tab-panel" data-panel="limits" hidden>
+      <div class="form-row-3">
+        <div class="field"><label>Max stock %</label><input id="sMaxStock" type="number" value="${num(s.maxStockPct) || 10}" /></div>
+        <div class="field"><label>Max sector %</label><input id="sMaxSector" type="number" value="${num(s.maxSectorPct) || 30}" /></div>
+        <div class="field"><label>Review a stock every (days)</label><input id="sStale" type="number" value="${num(s.staleDays) || 90}" /></div>
+      </div>
+      <div class="form-row-2">
+        <div class="field"><label>Remind me to import a CSV after (days, 0 = never)</label><input id="sRemind" type="number" min="0" value="${num(s.importRemindDays)}" /></div>
+        <div class="field"><label>Last import</label><div class="sub" style="padding-top:6px;">${state.lastImport ? new Date(state.lastImport).toLocaleString() : 'None yet'}</div></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" data-panel="backup" hidden>
+      <div class="field"><label>Right-click research links (Label | address with {TICKER})</label><textarea id="sLinks" rows="5" style="font-family:var(--mono);font-size:calc(11.5px * var(--fs));">${esc(linkLines)}</textarea></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button id="sExportCsv" class="quiet">Export positions CSV</button>
+        <button id="sExportJson" class="quiet">Download a backup (JSON)</button>
+        <button id="sLoadSample" class="quiet">Load sample data</button>
+      </div>
+    </div>`,
+    `<button id="sWhatsNew" class="quiet wn-btn">What's new in ${esc(ADDON.version)}</button><button id="mCancel" class="quiet">Cancel</button><button id="mSave" class="primary">Save</button>`, true);
+
+  const showTab = id => {
+    mBody.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === id));
+    mBody.querySelectorAll('[data-panel]').forEach(p => { p.hidden = p.dataset.panel !== id; });
+  };
+  mBody.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => showTab(b.dataset.tab); });
+  showTab(tab || 'data');
+  let size = s.fontSize || 'm', wb = s.weightBase === 'total' ? 'total' : 'invested';
+  mBody.querySelectorAll('[data-size]').forEach(b => { b.onclick = () => {
+    size = b.dataset.size;
+    mBody.querySelectorAll('[data-size]').forEach(x => x.classList.toggle('on', x === b));
+    document.documentElement.dataset.size = size;   // preview right away
+  }; });
+  mBody.querySelectorAll('[data-wb]').forEach(b => { b.onclick = () => { wb = b.dataset.wb; mBody.querySelectorAll('[data-wb]').forEach(x => x.classList.toggle('on', x === b)); }; });
+  mBody.querySelector('#sExportCsv').onclick = exportPositionsCsv;
+  mBody.querySelector('#sExportJson').onclick = () => { downloadFile('stocks-hub-backup-' + todayStr() + '.json', JSON.stringify(state, null, 2), 'application/json'); toast('Backup downloaded'); };
+  mBody.querySelector('#sLoadSample').onclick = () => { closeModal(); loadSampleData(); };
+  mFoot.querySelector('#mCancel').onclick = () => { sizeAttr(); closeModal(); };
+  mFoot.querySelector('#sWhatsNew').onclick = () => { sizeAttr(); openWhatsNew(); };
+  mFoot.querySelector('#mSave').onclick = () => {
+    const v = id => mBody.querySelector(id);
+    s.finnhubKey = v('#sFinnhub').value.trim();
+    s.alphaVantageKey = v('#sAv').value.trim();
+    s.customQuoteUrl = v('#sCustomUrl').value.trim();
+    s.refreshHours = num(v('#sRefHours').value);
+    s.dailyCallLimit = Math.max(10, num(v('#sLimit').value) || 150);
+    s.marketHoursOnly = v('#sMarket').checked;
+    s.autoChart = v('#sAutoChart').checked;
+    s.autoNews = v('#sAutoNews').checked;
+    s.fontSize = size;
+    s.weightBase = wb;
+    s.netWorthInBar = v('#sNwBar').checked;
+    s.maxStockPct = Math.max(1, num(v('#sMaxStock').value) || 10);
+    s.maxSectorPct = Math.max(1, num(v('#sMaxSector').value) || 30);
+    s.staleDays = Math.max(1, num(v('#sStale').value) || 90);
+    s.importRemindDays = Math.max(0, Math.round(num(v('#sRemind').value)));
+    const links = [];
+    v('#sLinks').value.split('\n').forEach(line => {
+      const parts = line.split('|').map(x => x.trim());
+      if (parts.length >= 2 && parts[0] && /^https?:\/\//.test(parts[1])) links.push({ label: parts[0], url: parts[1], etfOnly: (parts[2] || '').toLowerCase() === 'etf' });
+    });
+    if (links.length) s.researchLinks = links;
+    Object.keys(loadErr).forEach(k => delete loadErr[k]);
+    saveState(); closeModal(); toast('Settings saved'); render();
+  };
+}
+
+function exportPositionsCsv() {
+  const cols = ['Ticker','Name','Account','Type','Shares','AvgCost','CurrentPrice','Value','PnL','Status','Sector','Tags','LastReviewed','ExitStrategy'];
+  const escCsv = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const lines = [cols.join(',')];
+  state.positions.forEach(p => {
+    lines.push([
+      p.ticker, p.name, p.account, p.isEtf ? 'ETF' : 'Stock', p.shares, p.avgCost, p.currentPrice,
+      posValue(p).toFixed(2), posPnl(p).toFixed(2), getThesisStatus(p), p.sector,
+      (p.tags || []).join('; '), p.lastReviewed, p.exitStrategy
+    ].map(escCsv).join(','));
+  });
+  downloadFile(`stocks-hub-${todayStr()}.csv`, lines.join('\n'), 'text/csv');
+  toast('Exported CSV');
+}
+
+
+
+function loadSampleData() {
+  const before = JSON.stringify(state);
+  const oldDate = new Date(Date.now() - 105 * 86400000).toISOString().slice(0, 10);
+  state.positions = [
+    {
+      id: uid(), ticker: 'NVDA', name: 'NVIDIA Corp', account: 'Brokerage',
+      shares: 120, avgCost: 98.50, currentPrice: 133.20, sector: 'Technology',
+      tags: ['AI', 'Semis'], isEtf: false, expenseRatio: null,
+      thesis: [
+        { id: uid(), text: 'Data center demand growing >20% YoY', checked: true },
+        { id: uid(), text: 'CUDA software moat remains intact', checked: true },
+        { id: uid(), text: 'Gross margins staying above 70%', checked: true }
+      ],
+      exitStrategy: 'Trim 25% if portfolio weight exceeds 12% or if two thesis points break.',
+      decisionLog: [
+        { id: uid(), date: todayStr(), note: 'Earnings beat, keeping full size.' },
+        { id: uid(), date: '2026-08-22', note: 'Added 20 shares on pullback.' }
+      ],
+      lastReviewed: todayStr(), manualStatus: null, netOptionPremium: 420
+    },
+    {
+      id: uid(), ticker: 'MSFT', name: 'Microsoft Corp', account: 'Roth IRA',
+      shares: 28, avgCost: 360.00, currentPrice: 425.10, sector: 'Technology',
+      tags: ['AI', 'Cloud'], isEtf: false, expenseRatio: null,
+      thesis: [
+        { id: uid(), text: 'Azure cloud growth accelerating', checked: true },
+        { id: uid(), text: 'Enterprise Copilot adoption expanding', checked: true }
+      ],
+      exitStrategy: 'Long-term core compounder. Review only if Azure drops below 20% growth.',
+      decisionLog: [{ id: uid(), date: todayStr(), note: 'Steady compounder, holding.' }],
+      lastReviewed: todayStr(), manualStatus: null, netOptionPremium: 0
+    },
+    {
+      id: uid(), ticker: 'AAPL', name: 'Apple Inc', account: 'Roth IRA',
+      shares: 42, avgCost: 204.00, currentPrice: 228.50, sector: 'Technology',
+      tags: ['Consumer'], isEtf: false, expenseRatio: null,
+      thesis: [
+        { id: uid(), text: 'Services revenue growing double digits', checked: true },
+        { id: uid(), text: 'Hardware upgrade cycle accelerating', checked: false }
+      ],
+      exitStrategy: 'Hold for services growth; trim if hardware stalls two quarters in a row.',
+      decisionLog: [],
+      lastReviewed: todayStr(), manualStatus: null, netOptionPremium: 0
+    },
+    {
+      id: uid(), ticker: 'INTC', name: 'Intel Corp', account: 'Brokerage',
+      shares: 180, avgCost: 31.00, currentPrice: 24.10, sector: 'Technology',
+      tags: ['Semis'], isEtf: false, expenseRatio: null,
+      thesis: [
+        { id: uid(), text: 'Foundry roadmap hitting node targets on time', checked: false },
+        { id: uid(), text: 'Free cash flow turning positive', checked: false }
+      ],
+      exitStrategy: 'Exit on next bounce or harvest tax loss before year end.',
+      decisionLog: [{ id: uid(), date: oldDate, note: 'Giving foundry turnaround one more quarter.' }],
+      lastReviewed: oldDate, manualStatus: null, netOptionPremium: 0
+    },
+    {
+      id: uid(), ticker: 'VOO', name: 'Vanguard S&P 500 ETF', account: 'Brokerage',
+      shares: 75, avgCost: 460.00, currentPrice: 530.00, sector: 'Broad Market',
+      tags: ['S&P 500'], isEtf: true, expenseRatio: 0.03,
+      thesis: [], exitStrategy: '', decisionLog: [], lastReviewed: todayStr(), manualStatus: null, netOptionPremium: 0
+    },
+    {
+      id: uid(), ticker: 'VTI', name: 'Vanguard Total Stock Market ETF', account: 'Roth IRA',
+      shares: 80, avgCost: 250.00, currentPrice: 288.00, sector: 'Broad Market',
+      tags: ['Total Market'], isEtf: true, expenseRatio: 0.03,
+      thesis: [], exitStrategy: '', decisionLog: [], lastReviewed: todayStr(), manualStatus: null, netOptionPremium: 0
+    },
+    {
+      id: uid(), ticker: 'QQQM', name: 'Invesco NASDAQ 100 ETF', account: 'Brokerage',
+      shares: 82, avgCost: 175.00, currentPrice: 205.00, sector: 'Technology',
+      tags: ['AI', 'Nasdaq'], isEtf: true, expenseRatio: 0.15,
+      thesis: [], exitStrategy: '', decisionLog: [], lastReviewed: todayStr(), manualStatus: null, netOptionPremium: 0
+    }
+  ];
+  state.etfCache = {
+    VOO: { expenseRatio: 0.03, updatedAt: todayStr(), holdings: [
+      { symbol: 'AAPL', weight: 7.1 }, { symbol: 'NVDA', weight: 6.8 }, { symbol: 'MSFT', weight: 6.4 },
+      { symbol: 'AMZN', weight: 3.8 }, { symbol: 'META', weight: 2.5 }, { symbol: 'GOOGL', weight: 2.1 }
+    ]},
+    VTI: { expenseRatio: 0.03, updatedAt: todayStr(), holdings: [
+      { symbol: 'AAPL', weight: 6.1 }, { symbol: 'NVDA', weight: 5.9 }, { symbol: 'MSFT', weight: 5.6 },
+      { symbol: 'AMZN', weight: 3.3 }, { symbol: 'META', weight: 2.2 }, { symbol: 'GOOGL', weight: 1.8 }
+    ]},
+    QQQM: { expenseRatio: 0.15, updatedAt: todayStr(), holdings: [
+      { symbol: 'AAPL', weight: 8.9 }, { symbol: 'NVDA', weight: 8.5 }, { symbol: 'MSFT', weight: 8.1 },
+      { symbol: 'AMZN', weight: 5.3 }, { symbol: 'META', weight: 4.6 }, { symbol: 'AVGO', weight: 4.5 }
+    ]}
+  };
+  state.watchlist = [
+    { id: uid(), ticker: 'COST', name: 'Costco Wholesale', currentPrice: 910, targetBuy: 840, notes: 'Buy on valuation reset below 45x P/E' }
+  ];
+  state.cashByAccount = { Brokerage: 2500 };
+  state.openOptionsByAccount = {};
+  state.openOptions = [];
+  takeSnapshot();
+  saveState();
+  ui.view = 'positions';
+  ui.selectedId = state.positions[0].id;
+  toast('Sample portfolio loaded', { undo: () => { hydrate(JSON.parse(before)); saveState(); render(); } });
+  render();
+}
+
+
+/* ---- 90-init.js ---- */
+/* Start up: load saved data (1.0 data carries over), wire the buttons, take today's snapshot, refresh if due. */
+
+document.getElementById('btnImport').onclick = openImportModal;
+document.getElementById('btnRefresh').onclick = () => { if (ui.refreshing) { ui.refreshing = false; toast('Refresh stopped'); } else refreshAllQuotes(false); };
+document.getElementById('btnSettings').onclick = () => openSettingsModal();
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && backdrop.classList.contains('open')) { sizeAttr(); closeModal(); return; }
+  const tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || backdrop.classList.contains('open')) return;
+  if (e.key === 'Delete' && ui.view === 'positions' && ui.selectedId) {
+    const sel = state.positions.find(p => p.id === ui.selectedId);
+    if (sel) deletePosition(sel);
+  } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && ui.view === 'positions') {
+    const cards = Array.from(document.querySelectorAll('#stockList .pos-card'));
+    const i = cards.findIndex(c => c.dataset.id === ui.selectedId);
+    const next = cards[Math.max(0, Math.min(cards.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))];
+    if (next) { e.preventDefault(); ui.selectedId = next.dataset.id; render(); const c = document.querySelector('#stockList .pos-card.selected'); if (c) c.scrollIntoView({ block: 'nearest' }); }
+  } else if (e.key === '/' && ui.view === 'positions') {
+    const s = document.getElementById('posSearch'); if (s) { e.preventDefault(); s.focus(); }
+  }
+});
+
+// Drop a Fidelity CSV anywhere on the page.
+document.addEventListener('dragover', e => { if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) e.preventDefault(); });
+document.addEventListener('drop', e => {
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (!f || !/\.csv$/i.test(f.name) || e.target.closest('#dropZone')) return;
+  e.preventDefault();
+  openImportModal();
+  const r = new FileReader(); r.onload = () => window.__shImportText(String(r.result || '')); r.readAsText(f);
+});
+
+if (hasBar && typeof tome.bar.onPick === 'function') tome.bar.onPick(({ id }) => { ui.view = id; render(); });
+
+let resizeTimer = null;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 150); });
+
+function hydrate(saved) {
+  const def = defaultState();
+  if (!saved || typeof saved !== 'object') { state = def; return; }
+  state = Object.assign({}, def, saved, {
+    settings: Object.assign({}, def.settings, saved.settings || {}),
+    etfCache: saved.etfCache || {},
+    positions: Array.isArray(saved.positions) ? saved.positions : [],
+    watchlist: Array.isArray(saved.watchlist) ? saved.watchlist : [],
+    closed: Array.isArray(saved.closed) ? saved.closed : [],
+    cashByAccount: saved.cashByAccount && typeof saved.cashByAccount === 'object' ? saved.cashByAccount : {},
+    openOptionsByAccount: saved.openOptionsByAccount && typeof saved.openOptionsByAccount === 'object' ? saved.openOptionsByAccount : {},
+    openOptions: Array.isArray(saved.openOptions) ? saved.openOptions : [],
+    accountKinds: saved.accountKinds && typeof saved.accountKinds === 'object' ? saved.accountKinds : {},
+    manualAssets: Array.isArray(saved.manualAssets) ? saved.manualAssets : [],
+    snapshots: Array.isArray(saved.snapshots) ? saved.snapshots : [],
+    cache: Object.assign({ chart: {}, news: {}, earn: {} }, saved.cache || {}),
+    api: saved.api && typeof saved.api === 'object' ? saved.api : { day: '', finnhub: 0, av: 0 }
+  });
+  // 1.0 refreshed every 4 hours around the clock; keep a saved choice but default the new options.
+  if (saved.settings && saved.settings.marketHoursOnly == null) state.settings.marketHoursOnly = true;
+}
+
+async function init() {
+  if (hasTome && tome.data) {
+    hydrate(await tome.data.get());
+    // Changes from another PC (Tome sync) or another tab. While you're typing, the redraw waits until you leave the box,
+    // so a sync never knocks you out of a note.
+    if (typeof tome.data.onChange === 'function') tome.data.onChange(val => {
+      hydrate(val);
+      const a = document.activeElement;
+      if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && !backdrop.classList.contains('open')) {
+        if (!a.dataset.shPending) { a.dataset.shPending = '1'; a.addEventListener('blur', () => { delete a.dataset.shPending; setTimeout(render, 0); }, { once: true }); }
+        if (a.id === 'exitNotes') a.dispatchEvent(new Event('input'));   // keep what's typed in the new copy
+        renderSummaryBar();
+        return;
+      }
+      if (backdrop.classList.contains('open')) { renderSummaryBar(); return; }
+      render();
+    });
+  }
+  sizeAttr();
+  render();
+  if (!(hasTome && tome.preview) && !(state.snapshots || []).some(s => s.date === todayStr()) && state.positions.length) { takeSnapshot(); saveState(); }
+  maybeWhatsNew();
+  if (autoRefreshDue()) refreshAllQuotes(true);
+  setInterval(() => { if (autoRefreshDue() && !document.hidden) refreshAllQuotes(true); }, 10 * 60000);
+}
+init();
+
+})();
+</script>
+</body>
+</html>
