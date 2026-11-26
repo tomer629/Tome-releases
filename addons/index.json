@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-26T08:49:37.730Z",
+ "updatedAt": "2026-11-26T08:50:21.067Z",
  "items": [
   {
    "id": "countdowns",
@@ -28,7 +28,7 @@
   {
    "id": "stocks-hub",
    "name": "Stocks Hub",
-   "version": "0.5",
+   "version": "0.6",
    "description": "Personal stock, ETF, and net worth dashboard with thesis health, overlap analysis, and exit planning.",
    "icon": "<svg viewBox=\"0 0 48 48\"><path d=\"M6 34l10-10 8 7 14-17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M30 14h8v8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><line x1=\"6\" y1=\"41\" x2=\"42\" y2=\"41\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\"/></svg>",
    "file": "stocks-hub.html",
