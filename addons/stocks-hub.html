@@ -4,19 +4,19 @@
 <script type="application/json" id="tome-addon">
 {
   "id": "stocks-hub",
-  "name": "Stocks Hub",
-  "version": "0.6",
+  "name": "Investing",
+  "version": "0.7",
   "api": 1,
-  "description": "Personal stock, ETF, and net worth dashboard with thesis health, overlap analysis, and exit planning.",
+  "description": "Personal investing dashboard: stocks, ETFs, funds and hand-entered accounts, with full exposure, thesis health and exit planning.",
   "icon": "\u003csvg viewBox=\"0 0 48 48\">\u003cpath d=\"M6 34l10-10 8 7 14-17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cpath d=\"M30 14h8v8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cline x1=\"6\" y1=\"41\" x2=\"42\" y2=\"41\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\"/>\u003c/svg>"
 }
 </script>
 <meta charset="utf-8">
-<title>Stocks Hub</title>
+<title>Investing</title>
 <!-- Built from tomer629/Tome-Addons stocks-hub/src by scripts/build.mjs. Edit the source files, not this file. -->
 <style>
 /* 10-base.css */
-/* Stocks Hub base styles (from 1.0). Sizes use --fs: Tome's text size (--t) times this add-on's own size setting (--s). */
+/* Investing base styles (from 1.0). Sizes use --fs: Tome's text size (--t) times this add-on's own size setting (--s). */
 :root { --s: 1.15; --fs: calc(var(--t, 1) * var(--s)); }
 :root[data-size="s"] { --s: 1; }
 :root[data-size="l"] { --s: 1.3; }
@@ -853,6 +853,67 @@
 .ai-row { display: grid; grid-template-columns: calc(230px * var(--fs, 1)) 1fr; gap: 12px; align-items: center; }
 .ai-row button { justify-self: stretch; }
 
+/* 30-v07.css */
+/* 0.7: wider list with two-line cards, the Direct / Full exposure switch, hand-entered accounts. */
+.bar-actions [hidden] { display: none; }
+
+.pane-left { width: clamp(400px, 36vw, 580px); }
+.list-toolbar { flex-wrap: wrap; row-gap: 6px; }
+.scroll-list { gap: 5px; }
+
+.pos-card.compact {
+  display: grid; grid-template-columns: minmax(52px, auto) minmax(0, 1fr) auto auto;
+  column-gap: 12px; row-gap: 1px; align-items: baseline; padding: 7px 10px 6px;
+}
+.pc-tk { font-weight: 700; font-size: calc(14.5px * var(--fs)); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.pc-tk input { margin: 0; }
+.pc-name { color: var(--muted); font-size: calc(12px * var(--fs)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-val { font-family: var(--mono); font-weight: 700; font-size: calc(14px * var(--fs)); text-align: right; white-space: nowrap; }
+.pc-pnl, .pc-day { font-family: var(--mono); font-size: calc(12px * var(--fs)); text-align: right; white-space: nowrap; }
+.pc-wt { font-family: var(--mono); font-size: calc(11.5px * var(--fs)); color: var(--muted); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.pc-acct { grid-column: 2 / 4; font-size: calc(12px * var(--fs)); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-day .badge { font-size: calc(10px * var(--fs)); padding: 1px 6px; font-family: var(--font, var(--sans)); }
+.pc-day .sub { font-size: calc(11px * var(--fs)); font-family: var(--font, var(--sans)); }
+.stat-strip { grid-template-columns: repeat(auto-fit, minmax(108px, 1fr)); }
+.pc-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--ok); flex: none; }
+.pc-dot.watch { background: var(--soon); }
+.pc-dot.exit { background: var(--late); }
+.pc-via { grid-column: 2 / 5; font-size: calc(11.5px * var(--fs)); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-bar { grid-column: 1 / -1; height: 3px; border-radius: 99px; background: var(--bg); overflow: hidden; margin-top: 4px; }
+.pc-bar .weight-fill { height: 100%; }
+.pos-card.compact.muted-card { opacity: 0.48; }
+
+/* Account pills: add an account by hand, and a dot on one with funds that need updating */
+.pill.add-acct { color: var(--accent); border: 1px dashed var(--line); }
+.pill.add-acct:hover { border-color: var(--accent); }
+.acct-stale { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--soon); margin-left: 5px; vertical-align: middle; }
+.acct-stale.late { background: var(--late); }
+
+/* Hand-entered account window */
+.modal-box.xwide { max-width: 1040px; }
+.ma-top { display: grid; grid-template-columns: 1.2fr 0.9fr 1.6fr; gap: 10px; align-items: end; }
+.ma-link { display: flex; gap: 6px; }
+.ma-link input { flex: 1; min-width: 0; }
+.ma-table-wrap { max-height: min(46vh, 360px); overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.ma-table { width: 100%; border-collapse: collapse; font-size: calc(12.5px * var(--fs)); }
+.ma-table th { position: sticky; top: 0; background: var(--col); text-align: left; color: var(--muted); font-weight: 600; font-size: calc(11.5px * var(--fs)); padding: 6px 5px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.ma-table td { padding: 3px 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.ma-table input { width: 100%; min-width: 0; padding: 3px 6px; font-size: calc(12.5px * var(--fs)); }
+.ma-table input.n { font-family: var(--mono); text-align: right; }
+.ma-table td.ma-upd { white-space: nowrap; font-size: calc(11.5px * var(--fs)); }
+.ma-table td.ma-act { white-space: nowrap; text-align: right; }
+.ma-table .row-del-btn, .ma-table .ma-open { opacity: 0.7; background: none; border: none; color: var(--muted); cursor: pointer; padding: 0 4px; font-size: calc(13px * var(--fs)); }
+.ma-table .row-del-btn:hover { color: var(--late); opacity: 1; }
+.ma-table .ma-open:hover { color: var(--accent); opacity: 1; }
+.ma-table tr.focus td { background: var(--accent-soft); }
+.ma-empty { padding: 18px; text-align: center; color: var(--muted); }
+.ma-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ma-tools .grow { flex: 1; }
+.ma-import { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed var(--line); border-radius: 8px; background: var(--card); }
+.ma-import[hidden] { display: none; }
+.ma-import textarea { width: 100%; min-height: 96px; font-family: var(--mono); font-size: calc(12px * var(--fs)); resize: vertical; }
+.modal-foot .ma-del { margin-right: auto; color: var(--late); }
+
 </style>
 </head>
 <body>
@@ -891,7 +952,7 @@
 
 <script>
 (function () {
-const ADDON = {"version":"0.6","changes":[{"version":"0.6","date":"2026-11-26","lines":["Settings, For AI: the main button is now called Make changes to this add-on, the same name every add-on uses."]},{"version":"0.5","date":"2026-11-25","lines":["Copying the code needs Tome 1.43.0 or newer; the description works everywhere.","Settings, For AI: copy everything a new AI chat needs to work on Stocks Hub (how add-ons work, what Stocks Hub is, and its code), or just the description, or just the code. None of your positions, notes or keys are included.","In Tome, right-click Stocks Hub's name in the top bar for the same."]},{"version":"0.4","date":"2026-11-25","lines":["No calls at all (prices, charts or news) while Tome previews or tests a new version before installing it, so updates never use up your daily calls."]}],"spec":"# Stocks Hub\n\nAdd-on id `stocks-hub`. Kept in a private repo (tomer629/Tome-Addons) with its source split into files under `stocks-hub/src/` and built into the single installed file. Working in a chat without the repo: describe changes, or return the whole updated file with a higher version (0.x) and the same id; Thomas has it merged into the source.\n\nA personal dashboard for stocks, ETFs and net worth, fed by a positions CSV exported from the brokerage. Built to match the brokerage's All accounts total to the cent, while keeping internet calls few (it also runs on a work PC).\n\nDecisions and ideas: `BACKLOG.md`. Versions: `CHANGES.md`. Needs Tome 1.39+ to sync between PCs, 1.40+ to update by itself.\n\n## Views (pills in Tome's bar, with an in-page fallback)\n\n| View | What it shows |\n|---|---|\n| Positions | Individual stocks: cards on the left (value, gain or loss, right-click for more), detail on the right: price chart, across-accounts card, thesis checklist, exit strategy, decision log, trim and target planner, earnings and news, research links |\n| ETFs | ETFs and funds, overlap between them and look-through holdings |\n| Overview | Value over time, allocation donuts, today's movers, tax-loss candidates, total net worth with manual assets |\n| Watchlist | Stocks being watched |\n| Closed | Closed positions and lessons |\n| Options | Open options from the last import |\n\nSettings window, five tabs: Prices and calls (keys, refresh, call limit), Display, Limits and reminders, Backup and links, For AI (Make changes to this add-on, Copy description, Copy code). Also What's new.\n\n## Getting data in\n\n- Drop or choose the CSV anywhere on the page. Re-imports update shares, cost and price and keep notes; positions missing from the import are offered to move to Closed.\n- Prices: the CSV's own prices, then optional refreshes from free quote services with the person's own keys (or a custom quote address), within a daily call limit. Auto refresh every few hours, market hours only by default.\n- A reminder bar when there's been no import for a week (adjustable).\n\n## Saved data (tome.data)\n\nOne object, `version: 1`:\n\n```\npositions[]      { id, ticker, name, account, shares, avgCost, currentPrice, sector, tags[], isEtf, expenseRatio,\n                   thesis[{ id, text, checked }], exitStrategy, decisionLog[{ id, date, note }], lastReviewed,\n                   manualStatus, netOptionPremium, ... }\nwatchlist[], closed[]\nmanualAssets[]   { id, name, category, value, owed, updatedAt, notes }\nsnapshots[]      { date, total, invested, cash, options, manual, byAccount, prices }   value over time, one per day\ncashByAccount, openOptionsByAccount, openOptions[], accountKinds, lastImport, etfCache, lastQuoteRefresh\napi              { day, finnhub, av }   call counter (per PC)\ncache            { chart, news, earn }  saved charts and news (per PC)\nremindSnooze\nsettings         keys, refresh and limits, weightBase, fontSize, netWorthInBar, researchLinks[]\n```\n\nSync (Tome's js/sync-stocks.js) merges each position, watchlist item, closed trade and manual asset field by field; the call counter, auto refresh settings, saved charts and news, and the reminder snooze stay on each PC. A new field in a list record syncs by itself; a new top-level field needs a Tome change.\n\n## Kit calls used\n\ntome.data, tome.bar, tome.menu, tome.toast, tome.open, tome.copy, tome.download, tome.preview (no calls in a preview), tome.about (this file, sent by the build), tome.code and tome.aiPack (For AI, Tome 1.43+).\n\n## Source\n\n`src/js/` in load order: 00-core (state, helpers, numbers), 10-api (quotes and call budget), 20-import (CSV), 30-charts, 35-shell (views and bar), 40-positions, 41-etfs, 42-overview, 43-lists (watchlist, closed, options), 50-modals, 55-whatsnew, 60-settings, 90-init.\n"};
+const ADDON = {"version":"0.7","changes":[{"version":"0.7","date":"2026-11-26","lines":["Needs Tome 1.47.0 or newer for the settings button in the top bar; older Tome keeps it in the add-on.","Stocks Hub is now called Investing. Your positions, notes and settings carry over.","Amounts show in whole dollars. Per-share prices and average cost keep their cents.","The stock list is wider with shorter cards, so more fit on the screen.","Direct or Full exposure above the list: Full exposure shows each stock once, with everything you hold of it, across your accounts and inside your ETFs and funds.","Add an account by hand, like a 401(k) at another provider: click + Account at the end of the account list. Type in each fund, or paste a list. Copy instructions for AI makes an AI chat turn your statement into that list.","A fund can look like a common ETF (a stand-in, like VOO for an S&P 500 fund) or have its holdings pasted, so it counts in Full exposure and look-through.","Save the plan website and a link for any fund. Funds not updated in 90 days are highlighted and a reminder shows at the top (change the days in Settings, Limits and reminders).","With Tome 1.47 the settings button sits at the top right of Tome's bar, beside the lightbulb."]},{"version":"0.6","date":"2026-11-26","lines":["Settings, For AI: the main button is now called Make changes to this add-on, the same name every add-on uses."]},{"version":"0.5","date":"2026-11-25","lines":["Copying the code needs Tome 1.43.0 or newer; the description works everywhere.","Settings, For AI: copy everything a new AI chat needs to work on Stocks Hub (how add-ons work, what Stocks Hub is, and its code), or just the description, or just the code. None of your positions, notes or keys are included.","In Tome, right-click Stocks Hub's name in the top bar for the same."]}],"spec":"# Investing\n\nNamed Stocks Hub until 0.7 (2026-11-26). Add-on id `stocks-hub` (never changes). Kept in a private repo (tomer629/Tome-Addons) with its source split into files under `stocks-hub/src/` and built into the single installed file. Working in a chat without the repo: describe changes, or return the whole updated file with a higher version (0.x) and the same id; Thomas has it merged into the source.\n\nA personal dashboard for stocks, ETFs, funds and net worth, fed by a positions CSV exported from the brokerage, plus accounts entered by hand. Built to match the brokerage's All accounts total to the cent, while keeping internet calls few (it also runs on a work PC).\n\nDecisions and ideas: `BACKLOG.md`. Versions: `CHANGES.md`. Needs Tome 1.39+ to sync between PCs, 1.40+ to update by itself, 1.47+ for its settings gear in Tome's bar (tome.onSettings; older Tome shows the gear in the add-on). Amounts show in whole dollars (fmtMoney); per-share prices and average cost keep cents (fmtPrice).\n\n## Views (pills in Tome's bar, with an in-page fallback)\n\n| View | What it shows |\n|---|---|\n| Positions | Individual stocks: two-line cards in a wide list (value, gain or loss, weight and status, account, today; right-click for more), a Direct / Full exposure switch (Full: one card per ticker with every account plus what ETFs and funds hold, settings.exposure), detail on the right: price chart, across-accounts card, thesis checklist, exit strategy, decision log, trim and target planner, earnings and news, research links |\n| ETFs | ETFs and funds, overlap between them and look-through holdings |\n| Overview | Value over time, allocation donuts, today's movers, tax-loss candidates, total net worth with manual assets |\n| Watchlist | Stocks being watched |\n| Closed | Closed positions and lessons |\n| Options | Open options from the last import |\n\nSettings window, five tabs: Prices and calls (keys, refresh, call limit), Display, Limits and reminders, Backup and links, For AI (Make changes to this add-on, Copy description, Copy code). Also What's new.\n\n## Getting data in\n\n- Drop or choose the CSV anywhere on the page. Re-imports update shares, cost and price and keep notes; positions missing from the import are offered to move to Closed.\n- Prices: the CSV's own prices, then optional refreshes from free quote services with the person's own keys (or a custom quote address), within a daily call limit. Auto refresh every few hours, market hours only by default.\n- A reminder bar when there's been no import for a week (adjustable), or else when hand-entered funds are out of date.\n- Hand-entered accounts (+ Account at the end of the account pills; right-click one to edit or delete): a window with the account name, type, plan website and a table of funds (name, ticker or ID, stand-in ETF, shares, price, value, cost, updated, link). Import list takes a CSV (`Type,Account,Fund,Ticker,StandIn,Shares,Price,Value,Cost,Link,AsOf,Symbol,Weight`; holding rows give a fund's top holdings); Copy instructions for AI copies how to make that CSV from a statement. Funds are never quoted from the internet; one not updated in settings.manualStaleDays (90) is amber, twice that red.\n\n## Saved data (tome.data)\n\nOne object, `version: 1`:\n\n```\npositions[]      { id, ticker, name, account, shares, avgCost, currentPrice, sector, tags[], isEtf, expenseRatio,\n                   thesis[{ id, text, checked }], exitStrategy, decisionLog[{ id, date, note }], lastReviewed,\n                   manualStatus, netOptionPremium, ... }\n                 hand-entered funds also: manual: true, standIn, link, updatedAt (YYYY-MM-DD); ticker is M_\u003cNAME> when it has none\nsettings.manualAccounts { \u003caccount name>: { link } }   hand-entered accounts (settings sync, so no Tome change)\netfCache[\"M:\u003cTICKER or NAME>\"]  holdings pasted for a hand-entered fund\nwatchlist[], closed[]\nmanualAssets[]   { id, name, category, value, owed, updatedAt, notes }\nsnapshots[]      { date, total, invested, cash, options, manual, byAccount, prices }   value over time, one per day\ncashByAccount, openOptionsByAccount, openOptions[], accountKinds, lastImport, etfCache, lastQuoteRefresh\napi              { day, finnhub, av }   call counter (per PC)\ncache            { chart, news, earn }  saved charts and news (per PC)\nremindSnooze\nsettings         keys, refresh and limits, weightBase, fontSize, netWorthInBar, researchLinks[]\n```\n\nSync (Tome's js/sync-stocks.js) merges each position, watchlist item, closed trade and manual asset field by field; the call counter, auto refresh settings, saved charts and news, and the reminder snooze stay on each PC. A new field in a list record syncs by itself; a new top-level field needs a Tome change.\n\n## Kit calls used\n\ntome.data, tome.bar, tome.menu, tome.toast, tome.open, tome.copy, tome.download, tome.preview (no calls in a preview), tome.about (this file, sent by the build), tome.code and tome.aiPack (For AI, Tome 1.43+).\n\n## Source\n\n`src/js/` in load order: 00-core (state, helpers, numbers), 10-api (quotes and call budget), 20-import (CSV), 30-charts, 35-shell (views and bar), 40-positions, 41-etfs, 42-overview, 43-lists (watchlist, closed, options), 50-modals, 55-whatsnew, 60-settings, 90-init.\n"};
 if (typeof tome !== 'undefined' && tome && typeof tome.about === 'function' && ADDON.spec) tome.about(ADDON.spec);
 /* ---- 00-core.js ---- */
 /* Core: state, helpers, and the numbers every view uses. */
@@ -956,7 +1017,11 @@ function defaultState() {
       weightBase: 'invested',   // invested | total
       fontSize: 'm',            // s | m | l
       netWorthInBar: true,
-      researchLinks: DEFAULT_RESEARCH_LINKS.slice()
+      researchLinks: DEFAULT_RESEARCH_LINKS.slice(),
+      // 0.7
+      exposure: 'direct',        // direct | full: the position list's switch
+      manualAccounts: {},        // hand-entered accounts: name: { link }
+      manualStaleDays: 90        // a hand-entered fund not updated this long gets highlighted
     }
   };
 }
@@ -975,7 +1040,8 @@ const ui = {
   editingPriceId: null,
   chartRange: 'all',
   historySeries: 'total',
-  historyRange: 'all'
+  historyRange: 'all',
+  exposure: 'direct'
 };
 
 const hasTome = typeof window.tome !== 'undefined' && !!window.tome;
@@ -1012,7 +1078,12 @@ function esc(str) {
   return String(str == null ? '' : str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 function num(v) { const n = Number(v); return isFinite(n) ? n : 0; }
+/* 0.7: amounts in whole dollars (Thomas); per-share prices and average cost keep cents (fmtPrice). */
 function fmtMoney(n) {
+  const val = Math.round(num(n));
+  return (val < 0 ? '-' : '') + '$' + Math.abs(val).toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+function fmtPrice(n) {
   const val = num(n);
   return (val < 0 ? '-' : '') + '$' + Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
@@ -1027,7 +1098,7 @@ function fmtShares(n) { return num(n).toLocaleString('en-US', { maximumFractionD
 
 /* A CUSIP (employer plan funds like 66586Y488) can't be quoted. */
 function isCusip(sym) { return /^[0-9][0-9A-Z]{8}$/.test(String(sym || '')); }
-function canQuote(p) { return !!p.ticker && !isCusip(p.ticker) && !p.valueOnly; }
+function canQuote(p) { return !!p.ticker && !isCusip(p.ticker) && !p.valueOnly && !p.manual; }   // 0.7: hand-entered funds are updated by hand
 
 // ---------- Position math ----------
 function posPrice(p) { return num(p.currentPrice) || num(p.avgCost); }
@@ -1083,6 +1154,7 @@ function getAccounts() {
   state.positions.forEach(p => { if (p.account) set.add(p.account); });
   Object.keys(state.cashByAccount || {}).forEach(a => { if (Math.abs(num(state.cashByAccount[a])) >= 1) set.add(a); });
   Object.keys(state.openOptionsByAccount || {}).forEach(a => { if (num(state.openOptionsByAccount[a])) set.add(a); });
+  Object.keys(state.settings.manualAccounts || {}).forEach(a => set.add(a));   // 0.7: hand-entered, even before a fund is added
   return Array.from(set).sort((a, b) => accountTotal(b) - accountTotal(a));
 }
 function inAccount(name) { return ui.account === 'ALL' || name === ui.account; }
@@ -1183,6 +1255,44 @@ function getAccountsAll() {
   const a = getAccounts(); ui.account = keep; return a;
 }
 
+// ---------- 0.7: look-through and full exposure ----------
+/* A fund's holdings: its stand-in ETF's, then holdings pasted for it (hand-entered funds), then its own ticker's. */
+function manualKey(f) { return 'M:' + String(f.ticker || f.name || '').toUpperCase(); }
+function holdingsFor(f) {
+  const c = state.etfCache || {};
+  const pick = k => k && c[k] && Array.isArray(c[k].holdings) && c[k].holdings.length ? c[k].holdings : null;
+  return pick(f.standIn && String(f.standIn).toUpperCase()) || pick(manualKey(f)) || pick(f.ticker) || [];
+}
+/* Everything you hold of one ticker in the accounts shown: directly, and through each ETF or fund. */
+function exposureOf(ticker) {
+  const T = String(ticker || '').toUpperCase();
+  const mine = getFilteredPositions().filter(p => !p.isEtf && p.ticker === T);
+  const direct = mine.reduce((s, p) => s + posValue(p), 0);
+  const via = [];
+  getFilteredPositions({ onlyEtfs: true }).forEach(f => {
+    const h = holdingsFor(f).find(x => String(x.symbol).toUpperCase() === T);
+    if (h && num(h.weight) > 0) via.push({ label: f.manual ? (f.name || f.ticker) : f.ticker, val: posValue(f) * num(h.weight) / 100 });
+  });
+  via.sort((a, b) => b.val - a.val);
+  return { direct, via, total: direct + via.reduce((s, v) => s + v.val, 0), accounts: new Set(mine.map(p => p.account)).size };
+}
+
+// ---------- 0.7: hand-entered accounts ----------
+function dispTicker(p) { return p.manual && /^M_/.test(p.ticker || '') ? '' : (p.ticker || ''); }   // hand-entered funds without a ticker
+function isManualAccount(name) { return !!(state.settings.manualAccounts || {})[name]; }
+function staleLevel(p) {
+  if (!p.manual) return 0;
+  const lim = num(state.settings.manualStaleDays) || 90, d = daysSince(p.updatedAt);
+  return d >= lim * 2 ? 2 : d >= lim ? 1 : 0;
+}
+function staleBadge(p) {
+  const lv = staleLevel(p);
+  if (!lv) return p.manual && p.updatedAt ? `<span class="sub" title="Entered by hand">Updated ${esc(p.updatedAt)}</span>` : '';
+  const d = daysSince(p.updatedAt);
+  return `<span class="badge ${lv === 2 ? 'exit' : 'watch'}" title="Entered by hand, last updated ${esc(p.updatedAt || 'never')}">${d >= 999 ? 'Never updated' : 'Updated ' + d + 'd ago'}</span>`;
+}
+function staleFunds() { return state.positions.filter(p => staleLevel(p) > 0); }
+
 function sizeAttr() { document.documentElement.dataset.size = state.settings.fontSize || 'm'; }
 
 /* ---- 10-api.js ---- */
@@ -1270,7 +1380,7 @@ async function refreshSingleQuote(p) {
   if (!hasQuoteSource()) { toast('Add a Finnhub key in Settings, or click a price to type it'); return; }
   try {
     const q = await fetchQuote(p.ticker);
-    if (q) { applyQuote(p.ticker, q); takeSnapshot(); saveState(); toast(p.ticker + ': ' + fmtMoney(q.price)); render(); }
+    if (q) { applyQuote(p.ticker, q); takeSnapshot(); saveState(); toast(p.ticker + ': ' + fmtPrice(q.price)); render(); }
     else toast('No quote for ' + p.ticker);
   } catch (e) { toast(e.limit ? e.message : 'Quote failed for ' + p.ticker); }
 }
@@ -1407,7 +1517,7 @@ async function fetchAlphaVantageEtf(ticker) {
   }
 }
 async function refreshAllEtfHoldings(etfs) {
-  const unique = Array.from(new Set(etfs.map(e => e.ticker))).filter(t => !isCusip(t));
+  const unique = Array.from(new Set(etfs.map(e => e.manual ? e.standIn : e.ticker))).filter(t => t && !isCusip(t) && !/^M_/.test(t));   // 0.7: a hand-entered fund's stand-in
   if (!unique.length) return;
   if (!state.settings.alphaVantageKey) { toast('Add a free Alpha Vantage key in Settings to get ETF holdings'); return; }
   const left = AV_DAILY_FREE - apiDay().av;
@@ -1521,7 +1631,7 @@ function newPosition(it) {
     dayChange: it.dayChange, dayPct: it.dayPct, quoteAt: Date.now(),
     sector: '', tags: [], isEtf: it.isEtf, expenseRatio: null,
     thesis: [], exitStrategy: '', targetPrice: null, stopPrice: null,
-    decisionLog: [{ id: uid(), date: todayStr(), note: it.valueOnly ? 'Imported from CSV: value ' + fmtMoney(it.valueOnly) : 'Imported from CSV: ' + it.shares + ' shares @ ' + fmtMoney(it.avgCost) }],
+    decisionLog: [{ id: uid(), date: todayStr(), note: it.valueOnly ? 'Imported from CSV: value ' + fmtMoney(it.valueOnly) : 'Imported from CSV: ' + it.shares + ' shares @ ' + fmtPrice(it.avgCost) }],
     lastReviewed: todayStr(), manualStatus: null, netOptionPremium: 0
   };
 }
@@ -1532,7 +1642,7 @@ function planImport(res) {
   const incoming = new Map(res.items.map(it => [key(it), it]));
   const update = [], add = [];
   res.items.forEach(it => { (state.positions.some(p => key(p) === key(it)) ? update : add).push(it); });
-  const gone = state.positions.filter(p => res.accounts.includes(p.account) && !incoming.has(key(p)));
+  const gone = state.positions.filter(p => !p.manual && res.accounts.includes(p.account) && !incoming.has(key(p)));
   return { update, add, gone };
 }
 
@@ -1788,9 +1898,13 @@ function renderSummaryBar() {
   if (ui.account !== 'ALL' && !accounts.includes(ui.account)) ui.account = 'ALL';
   const acctEl = document.getElementById('accountTabs');
   const all = allTotals();
-  const btn = (id, label, val, title) => `<button class="pill ${ui.account === id ? 'on' : ''}" data-acct="${esc(id)}" title="${esc(title)}">${esc(label)}<span class="acct-val">${fmtMoneyShort(val)}</span></button>`;
-  acctEl.innerHTML = btn('ALL', 'All', all.total, 'All accounts') + accounts.map(a => btn(a, shortAcct(a), accountTotal(a), a + ' (' + kindLabel(accountKind(a)) + '). Right-click for more')).join('');
-  acctEl.querySelectorAll('button').forEach(b => {
+  // 0.7: a dot on a hand-entered account with funds that need updating, and + Account at the end.
+  const dot = a => { const lv = Math.max(0, ...state.positions.filter(p => p.account === a).map(staleLevel)); return lv ? `<i class="acct-stale ${lv === 2 ? 'late' : ''}"></i>` : ''; };
+  const btn = (id, label, val, title) => `<button class="pill ${ui.account === id ? 'on' : ''}" data-acct="${esc(id)}" title="${esc(title)}">${esc(label)}<span class="acct-val">${fmtMoneyShort(val)}</span>${id === 'ALL' ? '' : dot(id)}</button>`;
+  acctEl.innerHTML = btn('ALL', 'All', all.total, 'All accounts') + accounts.map(a => btn(a, shortAcct(a), accountTotal(a), a + ' (' + kindLabel(accountKind(a)) + (isManualAccount(a) ? ', entered by hand' : '') + '). Right-click for more')).join('')
+    + '<button class="pill add-acct" id="addAcct" title="Add an account by hand, like a 401(k) at another provider">+ Account</button>';
+  acctEl.querySelector('#addAcct').onclick = () => openManualAccountModal(null);
+  acctEl.querySelectorAll('button[data-acct]').forEach(b => {
     b.onclick = () => { ui.account = b.dataset.acct; render(); };
     if (b.dataset.acct !== 'ALL') b.oncontextmenu = ev => accountMenu(ev, b.dataset.acct);
   });
@@ -1818,7 +1932,11 @@ function accountMenu(ev, a) {
   showMenu(ev, [
     { label: 'Show only ' + shortAcct(a), action: () => { ui.account = a; render(); } },
     { label: 'Account type', items: ACCOUNT_KINDS.map(k => ({ label: (k.id === kind ? '✓ ' : '') + k.label, action: () => { state.accountKinds[a] = k.id; saveState(); toast(shortAcct(a) + ' is now ' + k.label); render(); } })) },
-    { label: 'Copy total (' + fmtMoney(accountTotal(a)) + ')', action: () => { if (hasTome && tome.copy) tome.copy(accountTotal(a).toFixed(2)); toast('Copied'); } }
+    { label: 'Copy total (' + fmtMoney(accountTotal(a)) + ')', action: () => { if (hasTome && tome.copy) tome.copy(accountTotal(a).toFixed(2)); toast('Copied'); } },
+    ...(isManualAccount(a) ? ['-',
+      { label: 'Edit account and funds...', action: () => openManualAccountModal(a) },
+      ...((state.settings.manualAccounts[a] || {}).link ? [{ label: 'Open plan website', action: () => openUrl(state.settings.manualAccounts[a].link) }] : []),
+      { label: 'Delete account', danger: true, confirm: true, action: () => deleteManualAccount(a) }] : [])
   ]);
 }
 
@@ -1827,7 +1945,17 @@ function renderRemindBar() {
   const days = num(state.settings.importRemindDays);
   const since = state.lastImport ? daysSince(state.lastImport) : null;
   const due = days > 0 && (state.positions.length || state.lastImport) && (since == null || since >= days) && state.remindSnooze !== todayStr();
-  bar.hidden = !due;
+  // 0.7: otherwise, hand-entered funds that haven't been updated in a while.
+  const stale = !due && state.remindSnooze !== todayStr() ? staleFunds() : [];
+  bar.hidden = !due && !stale.length;
+  if (!due && stale.length) {
+    const accts = Array.from(new Set(stale.map(p => p.account)));
+    bar.innerHTML = `<span class="grow">${stale.length} hand-entered fund${stale.length === 1 ? ' hasn\'t' : 's haven\'t'} been updated in ${num(state.settings.manualStaleDays) || 90}+ days (${esc(accts.map(shortAcct).join(', '))}).</span>
+      <button class="primary" id="remindUpd">Update</button><button class="quiet" id="remindLater">Tomorrow</button>`;
+    bar.querySelector('#remindUpd').onclick = () => openManualAccountModal(accts[0], stale[0].id);
+    bar.querySelector('#remindLater').onclick = () => { state.remindSnooze = todayStr(); saveState(); renderRemindBar(); };
+    return;
+  }
   if (!due) return;
   bar.innerHTML = `<span class="grow">${since == null ? 'No Fidelity import yet in this version: import one so cash and options are counted.' : 'Your last Fidelity import was ' + since + ' days ago. Shares and cash may be out of date.'}</span>
     <button class="primary" id="remindImport">Import CSV</button><button class="quiet" id="remindLater">Tomorrow</button>`;
@@ -1870,34 +1998,32 @@ function livePos(p) { return state.positions.find(x => x.id === p.id) || p; }
 const loading = new Set();   // "chart:NVDA", "earn:NVDA", "news:NVDA" while a call is out
 const loadErr = {};
 
+/* 0.7: two-line cards in a wider list. Line 1: ticker, name, value, gain or loss. Line 2: weight and status, account and
+   shares, today's change. In Full exposure (stocks only) one card per ticker: every account plus what funds hold. */
 function posCardHtml(p, totals, opts) {
-  const val = posValue(p), pnl = posPnl(p), pct = posPnlPct(p);
-  const wt = weightOf(p, totals);
+  opts = opts || {};
+  const val = opts.exposure ? opts.exposure.total : posValue(p);
+  const pnl = posPnl(p), pct = posPnlPct(p);
+  const wt = totals.weightBase > 0 ? val / totals.weightBase * 100 : 0;
   const st = getThesisStatus(p);
   const over = wt > (num(state.settings.maxStockPct) || 10);
   const day = p.dayChange != null && !p.valueOnly ? posDay(p) : null;
+  const stale = opts.check ? staleBadge(p) : (isStale(p) ? '<span class="badge stale">Stale</span>' : '');
+  const where = opts.exposure && opts.exposure.accounts > 1 ? opts.exposure.accounts + ' accounts'
+    : esc(shortAcct(p.account || 'Main')) + (p.valueOnly ? '' : ' · ' + fmtShares(p.shares) + ' sh @ ' + fmtPrice(posPrice(p)));
+  const fill = st === 'exit' && !opts.check ? 'exit' : (over ? 'over' : '');
+  const viaLine = opts.exposure && opts.exposure.via.length
+    ? `<div class="pc-via">${fmtMoney(opts.exposure.direct)} direct + ${opts.exposure.via.slice(0, 4).map(v => fmtMoney(v.val) + ' in ' + esc(v.label)).join(', ')}${opts.exposure.via.length > 4 ? ', more' : ''}</div>` : '';
   return `
-    <div class="pos-row">
-      <div class="pos-ticker-wrap">
-        ${opts && opts.check ? `<input type="checkbox" ${opts.excluded ? '' : 'checked'} title="Include in the what-if preview" />` : ''}
-        <span class="pos-ticker">${esc(p.ticker)}</span>
-        <span class="pos-weight" title="Share of ${state.settings.weightBase === 'total' ? 'the total including cash' : 'what you have invested'}">${opts && opts.excluded ? 'Excluded' : wt.toFixed(1) + '%'}</span>
-      </div>
-      ${opts && opts.check ? `<span class="pos-day ${day != null ? cls(day) : 'sub'}">${day != null ? fmtSigned(day, true) + ' today' : ''}</span>` : `<span class="badge ${st}">${st}</span>`}
-    </div>
-    <div class="pos-name" title="${esc(p.name || '')}">${esc(p.name || '')}</div>
-    <div class="pos-row">
-      <span class="pos-value" title="Current value">${fmtMoney(val)}</span>
-      <span class="pos-pnl-line ${cls(pnl)}" title="Gain or loss against your cost of ${fmtMoney(posCost(p))}">${fmtSigned(pnl, true)} (${fmtPct(pct, true)})</span>
-    </div>
-    <div class="pos-row">
-      <span class="pos-acct">${esc(shortAcct(p.account || 'Main'))}${p.valueOnly ? '' : ' · ' + fmtShares(p.shares) + ' @ ' + fmtMoney(posPrice(p))}</span>
-      ${!(opts && opts.check) && day != null ? `<span class="pos-day ${cls(day)}" title="Change today">${fmtSigned(day, true)} (${fmtPct(p.dayPct, true)})</span>` : ''}
-    </div>
-    <div style="display:flex;align-items:center;gap:6px;">
-      <div class="weight-track" style="flex:1;"><div class="weight-fill ${st === 'exit' && !(opts && opts.check) ? 'exit' : (over ? 'over' : '')}" style="width:${Math.min(100, wt * 4)}%"></div></div>
-      ${isStale(p) && !(opts && opts.check) ? '<span class="badge stale">Stale</span>' : ''}
-    </div>`;
+    <span class="pc-tk">${opts.check ? `<input type="checkbox" ${opts.excluded ? '' : 'checked'} title="Include in the what-if preview" />` : ''}${esc(dispTicker(p))}</span>
+    <span class="pc-name" title="${esc(p.name || '')}">${esc(p.name || '')}</span>
+    <span class="pc-val" title="${opts.exposure ? 'Direct plus what your funds hold' : 'Current value'}">${fmtMoney(val)}</span>
+    <span class="pc-pnl ${cls(pnl)}" title="Gain or loss against your cost of ${fmtMoney(posCost(p))}">${p.manual && !posCost(p) ? '' : fmtSigned(pnl) + ' (' + fmtPct(pct, true) + ')'}</span>
+    <span class="pc-wt" title="Share of ${state.settings.weightBase === 'total' ? 'the total including cash' : 'what you have invested'}">${opts.check ? '' : `<i class="pc-dot ${st}" title="${st}"></i>`}${opts.excluded ? 'Excluded' : wt.toFixed(1) + '%'}</span>
+    <span class="pc-acct">${where}</span>
+    <span class="pc-day ${day != null ? cls(day) : 'sub'}">${day != null ? fmtSigned(day) + ' today' : ''}${stale ? ' ' + stale : ''}</span>
+    ${viaLine}
+    <div class="pc-bar"><div class="weight-fill ${fill}" style="width:${Math.min(100, wt * 4)}%"></div></div>`;
 }
 
 function matchesSearch(p) {
@@ -1909,34 +2035,47 @@ function matchesSearch(p) {
 function renderPositionsView(ws) {
   const totals = getPortfolioTotals(false);
   const all = getFilteredPositions({ onlyStocks: true }).sort((a, b) => posValue(b) - posValue(a));
-  const filtered = all.filter(p => (ui.statusFilter === 'all' || getThesisStatus(p) === ui.statusFilter) && matchesSearch(p));
-  if (!filtered.some(p => p.id === ui.selectedId)) ui.selectedId = filtered.length ? filtered[0].id : null;
+  let filtered = all.filter(p => (ui.statusFilter === 'all' || getThesisStatus(p) === ui.statusFilter) && matchesSearch(p));
+  const full = ui.exposure === 'full';
+  // Full exposure: one card per ticker (the biggest position stands for it), sorted by total exposure.
+  let rows = filtered.map(p => ({ p, exposure: null }));
+  if (full) {
+    const seen = new Map();
+    filtered.forEach(p => { if (!seen.has(p.ticker)) seen.set(p.ticker, p); });
+    rows = Array.from(seen.values()).map(p => ({ p, exposure: exposureOf(p.ticker) })).sort((a, b) => b.exposure.total - a.exposure.total);
+  }
+  if (!rows.some(r => r.p.id === ui.selectedId || (full && livePos({ id: ui.selectedId }).ticker === r.p.ticker))) ui.selectedId = rows.length ? rows[0].p.id : null;
+  const selTicker = (state.positions.find(x => x.id === ui.selectedId) || {}).ticker;
 
   const left = document.createElement('div');
   left.className = 'pane-left';
   left.innerHTML = `
     <div class="list-toolbar">
       <div class="filter-pills">${['all', 'hold', 'watch', 'exit'].map(s => `<button class="pill ${ui.statusFilter === s ? 'on' : ''}" data-st="${s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join('')}</div>
+      <div class="filter-pills" title="Full exposure counts what your ETFs and funds hold too">
+        <button class="pill ${full ? '' : 'on'}" data-exp="direct">Direct</button><button class="pill ${full ? 'on' : ''}" data-exp="full">Full exposure</button></div>
       <button id="btnAddStock" class="primary" style="padding:4px 10px;font-size:calc(12.5px * var(--fs));">+ Add</button>
     </div>
     <input id="posSearch" class="search" type="search" placeholder="Find a ticker, name or theme" value="${esc(ui.search)}" />
     <div id="stockList" class="scroll-list"></div>
-    <div class="list-foot"><span>${filtered.length} of ${all.length}</span><span>${fmtMoneyShort(filtered.reduce((s, p) => s + posValue(p), 0))}</span></div>`;
+    <div class="list-foot"><span>${rows.length} of ${full ? new Set(all.map(p => p.ticker)).size : all.length}${full ? ' stocks' : ''}</span><span>${fmtMoney(rows.reduce((s, r) => s + (r.exposure ? r.exposure.total : posValue(r.p)), 0))}</span></div>`;
   ws.appendChild(left);
   left.querySelectorAll('[data-st]').forEach(b => { b.onclick = () => { ui.statusFilter = b.dataset.st; render(); }; });
+  left.querySelectorAll('[data-exp]').forEach(b => { b.onclick = () => { ui.exposure = b.dataset.exp; state.settings.exposure = ui.exposure; saveSoon(); render(); }; });
   left.querySelector('#btnAddStock').onclick = () => openPositionModal(null, false);
   const search = left.querySelector('#posSearch');
   search.oninput = () => { ui.search = search.value; const pos = search.selectionStart; render(); const s = document.getElementById('posSearch'); s.focus(); s.setSelectionRange(pos, pos); };
 
   const listEl = left.querySelector('#stockList');
-  if (!filtered.length) {
+  if (!rows.length) {
     listEl.innerHTML = `<div class="tome-empty" style="padding:20px 10px;"><div style="margin-bottom:8px;">${all.length ? 'Nothing matches.' : 'No stock positions here yet.'}</div><div class="sub">Click + Add, Import CSV, or load sample data in Settings.</div></div>`;
   } else {
-    filtered.forEach(p => {
+    rows.forEach(({ p, exposure }) => {
       const card = document.createElement('div');
-      card.className = 'pos-card' + (p.id === ui.selectedId ? ' selected' : '');
+      const selected = p.id === ui.selectedId || (full && p.ticker === selTicker);
+      card.className = 'pos-card compact' + (selected ? ' selected' : '');
       card.dataset.id = p.id;
-      card.innerHTML = posCardHtml(p, totals);
+      card.innerHTML = posCardHtml(p, totals, { exposure });
       card.onclick = () => { ui.selectedId = p.id; ui.editingPriceId = null; render(); };
       card.oncontextmenu = ev => openPositionContextMenu(ev, p);
       listEl.appendChild(card);
@@ -1986,7 +2125,7 @@ function renderPositionDetail(container, p, totals) {
     </div>
     <div class="stat-strip">
       <div class="stat-box"><span class="stat-lbl">Shares</span><span class="stat-num">${fmtShares(p.shares)}</span></div>
-      <div class="stat-box"><span class="stat-lbl">Avg cost</span><span class="stat-num">${fmtMoney(p.avgCost)}${netPrem ? ` <span class="sub" title="Cost after option premiums">(net ${fmtMoney(netBasis)})</span>` : ''}</span></div>
+      <div class="stat-box"><span class="stat-lbl">Avg cost</span><span class="stat-num">${fmtPrice(p.avgCost)}${netPrem ? ` <span class="sub" title="Cost after option premiums">(net ${fmtPrice(netBasis)})</span>` : ''}</span></div>
       <div class="stat-box"><span class="stat-lbl">Price (click to edit)</span><div id="priceSlot"></div></div>
       <div class="stat-box"><span class="stat-lbl">Today</span><span class="stat-num ${day != null ? cls(day) : ''}">${day != null ? fmtSigned(day) + ' (' + fmtPct(p.dayPct, true) + ')' : '-'}</span></div>
       <div class="stat-box"><span class="stat-lbl">Value (${wt.toFixed(1)}%)</span><span class="stat-num">${fmtMoney(val)}</span></div>
@@ -2008,7 +2147,7 @@ function renderPositionDetail(container, p, totals) {
     inp.onblur = commit;
     inp.onkeydown = e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { ui.editingPriceId = null; render(); } };
   } else {
-    priceSlot.innerHTML = `<span class="stat-num editable" title="${p.quoteAt ? 'As of ' + new Date(p.quoteAt).toLocaleString() : ''}">${fmtMoney(posPrice(p))}</span>`;
+    priceSlot.innerHTML = `<span class="stat-num editable" title="${p.quoteAt ? 'As of ' + new Date(p.quoteAt).toLocaleString() : ''}">${fmtPrice(posPrice(p))}</span>`;
     priceSlot.querySelector('span').onclick = () => { ui.editingPriceId = p.id; render(); };
   }
   head.querySelector('#btnEditPos').onclick = () => openPositionModal(p, false);
@@ -2077,7 +2216,7 @@ function chartCard(p) {
   if (num(p.targetPrice)) refs.push({ value: num(p.targetPrice), label: 'Target', cls: 'ref-target', color: 'var(--ok)', fit: false });
   if (num(p.stopPrice)) refs.push({ value: num(p.stopPrice), label: 'Stop', cls: 'ref-stop', color: 'var(--late)', fit: false });
   requestAnimationFrame(() => lineChart(card.querySelector('.chart'), {
-    series: [{ name: p.ticker, points: pts }], refs, height: 200, label: p.ticker + ' price',
+    series: [{ name: p.ticker, points: pts }], refs, height: 200, label: p.ticker + ' price', tipFormat: fmtPrice,
     dots: (p.decisionLog || []).map(e => ({ date: e.date, label: e.note })),
     empty: hasKey ? (canQuote(p) ? 'No price history yet.' : 'This holding has no ticker to chart.') : 'Add a free Alpha Vantage key in Settings for a price chart. Until then the chart builds from your own imports and refreshes.'
   }));
@@ -2103,8 +2242,8 @@ function acrossCard(p, totals) {
   const cost = same.reduce((s, x) => s + posCost(x), 0);
   const via = [];
   state.positions.filter(x => x.isEtf).forEach(e => {
-    const h = ((state.etfCache[e.ticker] || {}).holdings || []).find(h => h.symbol.toUpperCase() === p.ticker);
-    if (h) via.push({ etf: e.ticker, account: e.account, val: posValue(e) * num(h.weight) / 100, w: num(h.weight) });
+    const h = holdingsFor(e).find(h => String(h.symbol).toUpperCase() === p.ticker);
+    if (h) via.push({ etf: e.manual ? (e.name || e.ticker) : e.ticker, account: e.account, val: posValue(e) * num(h.weight) / 100, w: num(h.weight) });
   });
   const viaVal = via.reduce((s, x) => s + x.val, 0);
   const all = allTotals();
@@ -2112,8 +2251,8 @@ function acrossCard(p, totals) {
     <div class="panel-head"><h4 class="panel-title">${esc(p.ticker)} across your accounts</h4><span class="sub" style="font-size:calc(11.5px * var(--fs));">All accounts</span></div>
     <table class="mini-table">
       <tr><th>Account</th><th class="num">Shares</th><th class="num">Avg cost</th><th class="num">Value</th><th class="num">P&amp;L</th></tr>
-      ${same.map(x => `<tr class="click" data-id="${x.id}"><td>${esc(shortAcct(x.account))}</td><td class="num">${fmtShares(x.shares)}</td><td class="num">${fmtMoney(x.avgCost)}</td><td class="num">${fmtMoney(posValue(x))}</td><td class="num ${cls(posPnl(x))}">${fmtSigned(posPnl(x), true)}</td></tr>`).join('')}
-      ${same.length > 1 ? `<tr><td><b>Combined</b></td><td class="num"><b>${fmtShares(shares)}</b></td><td class="num" title="Blended cost per share">${shares ? fmtMoney(cost / shares) : '-'}</td><td class="num"><b>${fmtMoney(value)}</b></td><td class="num ${cls(value - cost)}">${fmtSigned(value - cost, true)}</td></tr>` : ''}
+      ${same.map(x => `<tr class="click" data-id="${x.id}"><td>${esc(shortAcct(x.account))}</td><td class="num">${fmtShares(x.shares)}</td><td class="num">${fmtPrice(x.avgCost)}</td><td class="num">${fmtMoney(posValue(x))}</td><td class="num ${cls(posPnl(x))}">${fmtSigned(posPnl(x), true)}</td></tr>`).join('')}
+      ${same.length > 1 ? `<tr><td><b>Combined</b></td><td class="num"><b>${fmtShares(shares)}</b></td><td class="num" title="Blended cost per share">${shares ? fmtPrice(cost / shares) : '-'}</td><td class="num"><b>${fmtMoney(value)}</b></td><td class="num ${cls(value - cost)}">${fmtSigned(value - cost, true)}</td></tr>` : ''}
       ${via.map(v => `<tr><td class="sub">Through ${esc(v.etf)} (${esc(shortAcct(v.account))}, ${v.w.toFixed(1)}%)</td><td></td><td></td><td class="num">${fmtMoney(v.val)}</td><td></td></tr>`).join('')}
     </table>
     <div class="note-line">Total exposure ${fmtMoney(value + viaVal)}, ${all.invested ? ((value + viaVal) / all.invested * 100).toFixed(1) : '0'}% of everything you have invested${via.length ? '' : '. ETF look-through appears once your ETFs have holdings (ETFs tab)'}.</div>`;
@@ -2326,11 +2465,14 @@ function renderEtfsView(ws) {
       const excluded = ui.whatIfExcluded.has(p.id);
       const cache = state.etfCache[p.ticker] || {};
       const er = p.expenseRatio != null && p.expenseRatio !== '' ? Number(p.expenseRatio) : (cache.expenseRatio != null ? Number(cache.expenseRatio) : null);
-      const holdingsCount = (cache.holdings || []).length;
+      const holdingsCount = holdingsFor(p).length;
+      const info = p.manual
+        ? 'Entered by hand' + (p.standIn ? ' &middot; looks like ' + esc(p.standIn) : '') + ' &middot; ' + (holdingsCount ? holdingsCount + ' holdings' : 'No holdings yet')
+        : (er != null ? er.toFixed(2) + '% fee' : 'No fee set') + ' &middot; ' + (holdingsCount ? holdingsCount + ' holdings' : 'No holdings yet');
 
       const card = document.createElement('div');
-      card.className = 'pos-card' + (excluded ? ' muted-card' : '');
-      card.innerHTML = posCardHtml(p, totals, { check: true, excluded }) + `<div class="pos-acct">${er != null ? er.toFixed(2) + '% fee' : 'No fee set'} &middot; ${holdingsCount ? holdingsCount + ' holdings' : 'No holdings yet'}</div>`;
+      card.className = 'pos-card compact' + (excluded ? ' muted-card' : '');
+      card.innerHTML = posCardHtml(p, totals, { check: true, excluded }) + `<div class="pc-via" style="grid-column:1/-1">${info}</div>`;
       const cb = card.querySelector('input[type="checkbox"]');
       cb.onclick = (ev) => {
         ev.stopPropagation();
@@ -2338,7 +2480,7 @@ function renderEtfsView(ws) {
         else ui.whatIfExcluded.add(p.id);
         render();
       };
-      card.onclick = () => openEtfHoldingsModal(p);
+      card.onclick = () => (p.manual ? openManualAccountModal(p.account, p.id) : openEtfHoldingsModal(p));
       card.oncontextmenu = (ev) => openPositionContextMenu(ev, p);
       listEl.appendChild(card);
     });
@@ -2353,7 +2495,7 @@ function renderEtfsView(ws) {
   // Deduplicate ETF tickers for pairwise overlap
   const uniqueEtfMap = new Map();
   activeEtfs.forEach(p => {
-    if (!uniqueEtfMap.has(p.ticker)) uniqueEtfMap.set(p.ticker, p);
+    if (!uniqueEtfMap.has(p.ticker || p.name)) uniqueEtfMap.set(p.ticker || p.name, p);
   });
   const uniqueEtfs = Array.from(uniqueEtfMap.values());
 
@@ -2374,8 +2516,8 @@ function renderEtfsView(ws) {
   for (let i = 0; i < uniqueEtfs.length; i++) {
     for (let j = i + 1; j < uniqueEtfs.length; j++) {
       const a = uniqueEtfs[i], b = uniqueEtfs[j];
-      const hA = (state.etfCache[a.ticker] && state.etfCache[a.ticker].holdings) || [];
-      const hB = (state.etfCache[b.ticker] && state.etfCache[b.ticker].holdings) || [];
+      const hA = holdingsFor(a);
+      const hB = holdingsFor(b);
       if (!hA.length || !hB.length) continue;
       const mapB = new Map();
       hB.forEach(h => mapB.set(h.symbol.toUpperCase(), Number(h.weight) || 0));
@@ -2390,7 +2532,7 @@ function renderEtfsView(ws) {
       });
       const erA = a.expenseRatio != null && a.expenseRatio !== '' ? Number(a.expenseRatio) : (state.etfCache[a.ticker] && state.etfCache[a.ticker].expenseRatio);
       const erB = b.expenseRatio != null && b.expenseRatio !== '' ? Number(b.expenseRatio) : (state.etfCache[b.ticker] && state.etfCache[b.ticker].expenseRatio);
-      pairs.push({ a: a.ticker, b: b.ticker, overlap: Math.min(100, overlap), sharedCount, erA, erB });
+      pairs.push({ a: a.manual ? a.name : a.ticker, b: b.manual ? b.name : b.ticker, overlap: Math.min(100, overlap), sharedCount, erA, erB });
     }
   }
   pairs.sort((x, y) => y.overlap - x.overlap);
@@ -2448,13 +2590,10 @@ function renderEtfsView(ws) {
   });
   activeEtfs.forEach(p => {
     const v = posValue(p);
-    const cache = state.etfCache[p.ticker];
-    if (cache && Array.isArray(cache.holdings) && cache.holdings.length) {
-      cache.holdings.forEach(h => {
-        const w = (Number(h.weight) || 0) / 100;
-        if (w > 0) addExp(h.symbol, 0, v * w, p.ticker);
-      });
-    }
+    holdingsFor(p).forEach(h => {   // 0.7: stand-ins and pasted holdings count too
+      const w = (Number(h.weight) || 0) / 100;
+      if (w > 0) addExp(h.symbol, 0, v * w, p.manual ? (p.name || p.ticker) : p.ticker);
+    });
   });
 
   const ltArr = Array.from(ltMap.values())
@@ -2523,7 +2662,7 @@ function renderOverviewView(ws) {
   const prevSnap = previousSnapshot();
   const vsPrev = prevSnap && isAll ? t.total - prevSnap.total : null;
   kpis.innerHTML = [
-    k(isAll ? 'Fidelity total' : shortAcct(ui.account), fmtMoneyShort(t.total), vsPrev != null ? `<span class="d ${cls(vsPrev)}">${fmtSigned(vsPrev, true)} since ${shortDate(prevSnap.date)}</span>` : '', 'Holdings, cash and open options'),
+    k(isAll ? 'Total' : shortAcct(ui.account), fmtMoneyShort(t.total), vsPrev != null ? `<span class="d ${cls(vsPrev)}">${fmtSigned(vsPrev, true)} since ${shortDate(prevSnap.date)}</span>` : '', 'Holdings, cash and open options'),
     k('Invested', fmtMoneyShort(t.invested), `<span class="d ${cls(t.pnl)}">${fmtSigned(t.pnl, true)} (${fmtPct(t.pnlPct, true)})</span>`, 'Holdings only, with gain or loss against cost'),
     t.dayKnown ? k('Today', `<span class="${cls(t.day)}">${fmtSigned(t.day, true)}</span>`, `<span class="d ${cls(t.day)}">${fmtPct(t.dayPct, true)}</span>`, 'From the latest prices') : '',
     k('Cash', fmtMoneyShort(t.cash), t.total ? `<span class="d sub">${(t.cash / t.total * 100).toFixed(1)}% of total</span>` : ''),
@@ -2585,7 +2724,7 @@ function historyCard() {
   card.className = 'panel-card';
   const snaps = state.snapshots || [];
   const isAll = ui.account === 'ALL';
-  const opts = isAll ? [['total', 'Fidelity total'], ['networth', 'Net worth'], ['invested', 'Invested'], ['accounts', 'By account']] : [['account', shortAcct(ui.account)]];
+  const opts = isAll ? [['total', 'Total'], ['networth', 'Net worth'], ['invested', 'Invested'], ['accounts', 'By account']] : [['account', shortAcct(ui.account)]];
   if (!opts.some(o => o[0] === ui.historySeries)) ui.historySeries = opts[0][0];
   const ranges = [['1m', 31], ['3m', 92], ['1y', 366], ['all', 99999]];
   const from = addDays(todayStr(), -(ranges.find(r => r[0] === ui.historyRange) || ranges[3])[1]);
@@ -2609,7 +2748,7 @@ function historyCard() {
     </div>
     <div class="chart"></div>
     ${ui.historySeries === 'accounts' ? `<div class="legend">${series.map((s, i) => `<span><i style="background:${PALETTE[i % PALETTE.length]}"></i>${esc(s.name)}</span>`).join('')}</div>` : ''}
-    <div class="note-line">One point a day, saved when you import a CSV, refresh prices, or open Stocks Hub. ${snaps.length} day${snaps.length === 1 ? '' : 's'} saved so far.</div>`;
+    <div class="note-line">One point a day, saved when you import a CSV, refresh prices, or open Investing. ${snaps.length} day${snaps.length === 1 ? '' : 's'} saved so far.</div>`;
   card.querySelectorAll('[data-s]').forEach(b => { b.onclick = () => { ui.historySeries = b.dataset.s; render(); }; });
   card.querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { ui.historyRange = b.dataset.r; render(); }; });
   requestAnimationFrame(() => lineChart(card.querySelector('.chart'), { series, height: 220, area: series.length === 1, label: 'Value over time', empty: 'The chart starts with your next day of use: one point is saved each day.' }));
@@ -2643,6 +2782,7 @@ function moversCard(list) {
 function openPositionById(id) {
   const p = state.positions.find(x => x.id === id);
   if (!p) return;
+  if (p.manual) { openManualAccountModal(p.account, p.id); return; }   // 0.7
   if (p.isEtf) { openEtfHoldingsModal(p); return; }
   ui.view = 'positions'; ui.selectedId = id; ui.statusFilter = 'all'; ui.search = '';
   if (!inAccount(p.account)) ui.account = 'ALL';
@@ -2675,7 +2815,7 @@ function manualAssetsCard(t) {
     <div class="panel-head"><h4 class="panel-title">Other assets and net worth</h4><button id="addAsset" class="primary" style="padding:4px 10px;font-size:calc(12.5px * var(--fs));">+ Add asset</button></div>
     ${assets.length ? `<table class="mini-table"><tr><th>Asset</th><th>Category</th><th class="num">Value</th><th class="num">Owed</th><th class="num">Equity</th><th class="num">Updated</th></tr>
       ${assets.map(a => `<tr class="click" data-id="${a.id}" title="${esc(a.notes || 'Right-click for more')}"><td><b>${esc(a.name)}</b></td><td class="sub">${esc(a.category)}</td><td class="num">${fmtMoney(a.value)}</td><td class="num">${num(a.owed) ? fmtMoney(a.owed) : '-'}</td><td class="num">${fmtMoney(num(a.value) - num(a.owed))}</td><td class="num sub">${a.updatedAt ? esc(a.updatedAt) : ''}</td></tr>`).join('')}
-      <tr><td colspan="2"><b>Fidelity total</b></td><td></td><td></td><td class="num"><b>${fmtMoney(t.total)}</b></td><td></td></tr>
+      <tr><td colspan="2"><b>Total</b></td><td></td><td></td><td class="num"><b>${fmtMoney(t.total)}</b></td><td></td></tr>
       <tr><td colspan="2"><b>Net worth</b></td><td class="num">${fmtMoney(value + t.total)}</td><td class="num">${owed ? fmtMoney(owed) : '-'}</td><td class="num"><b>${fmtMoney(t.netWorth)}</b></td><td></td></tr></table>
       <label class="check-row" style="font-size:calc(12px * var(--fs));"><input id="nwBar" type="checkbox" ${state.settings.netWorthInBar ? 'checked' : ''}> Show net worth in the top bar</label>`
       : '<div class="sub">Add things outside Fidelity, like a 401(k) from another job or your home (with what you still owe on it), to see your total net worth.</div>'}`;
@@ -2821,8 +2961,8 @@ function renderWatchlistView(ws) {
     tr.innerHTML = `
       <td><strong>${esc(w.ticker)}</strong> ${inZone ? '<span class="badge hold">In Zone</span>' : ''}</td>
       <td class="sub">${esc(w.name || '')}</td>
-      <td class="num">${cur > 0 ? fmtMoney(cur) : '-'}</td>
-      <td class="num">${tgt > 0 ? fmtMoney(tgt) : '-'}</td>
+      <td class="num">${cur > 0 ? fmtPrice(cur) : '-'}</td>
+      <td class="num">${tgt > 0 ? fmtPrice(tgt) : '-'}</td>
       <td>${esc(w.notes || '')}</td>
       <td style="text-align:right;">
         <button class="quiet btn-buy" style="padding:3px 8px;font-size:calc(11.5px * var(--fs));">Buy</button>
@@ -2899,8 +3039,8 @@ function renderClosedView(ws) {
       <td><strong>${esc(c.ticker)}</strong></td>
       <td class="sub">${esc(c.account || 'Main')}</td>
       <td class="num">${Number(c.shares)}</td>
-      <td class="num">${fmtMoney(c.avgCost)}</td>
-      <td class="num">${fmtMoney(c.sellPrice)}</td>
+      <td class="num">${fmtPrice(c.avgCost)}</td>
+      <td class="num">${fmtPrice(c.sellPrice)}</td>
       <td class="num" style="color:${pnl >= 0 ? 'var(--ok)' : 'var(--late)'};">${pnl >= 0 ? '+' : ''}${fmtMoney(pnl)} (${fmtPct(pct, true)})</td>
       <td>${esc(c.lesson || '')}</td>
     `;
@@ -2940,6 +3080,298 @@ function renderOptionsView(ws) {
   full.appendChild(card);
 }
 
+/* ---- 44-manual.js ---- */
+/* 0.7: hand-entered accounts, like a 401(k) at another provider. The account is listed in settings.manualAccounts
+   ({ name: { link } }, settings sync between PCs) and its funds are ordinary positions marked manual (each field syncs),
+   with { standIn, link, updatedAt }. Holdings pasted for a fund go in etfCache under manualKey(fund). Nothing here makes
+   an internet call except "Get holdings" for stand-ins, which uses the ETF holdings call the ETFs view already has. */
+
+const MANUAL_COLS = ['Type', 'Account', 'Fund', 'Ticker', 'StandIn', 'Shares', 'Price', 'Value', 'Cost', 'Link', 'AsOf', 'Symbol', 'Weight'];
+
+const MANUAL_AI_TEXT = `I need a CSV list of the funds in one of my retirement plan accounts, to import into my investing dashboard. Use the statement, fact sheets or screenshots I give you.
+
+Rules:
+- Reply with only the CSV, in one code block.
+- The first line is exactly this header:
+${MANUAL_COLS.join(',')}
+- One row per fund, with Type set to fund:
+  - Account: the account's name, the same on every row (for example: Old job 401(k)).
+  - Fund: the fund's full name as the statement shows it.
+  - Ticker: the fund's ticker or ID if it has one (like VFIAX, or a 9-character ID like 66586Y488). Blank if none.
+  - StandIn: a common ETF ticker that holds about the same things, so the dashboard can look inside the fund. S&P 500 index funds: VOO. Total US market: VTI. Large growth: VUG. Mid caps: VO. Small caps: VB. Total international: VXUS. Emerging markets: VWO. US bonds: BND. Leave it blank for target date, stable value and money market funds, or when unsure.
+  - Shares and Price: if the statement shows them.
+  - Value: the fund's current balance.
+  - Cost: the total paid in, if shown.
+  - Link: the fund's fact sheet page if you know it, otherwise blank.
+  - AsOf: the date the balances are from, as YYYY-MM-DD.
+- Optional: rows with Type set to holding list a fund's biggest holdings: Fund (exactly the same name as its fund row), Symbol (the stock's ticker) and Weight (percent of the fund, like 6.5). Up to 25 per fund, only from a statement or fact sheet, never guessed.
+- Numbers are plain: no $ signs, no thousands commas, no % signs (12345.67).
+- Put quotes around any value that contains a comma.
+
+Example:
+\`\`\`
+${MANUAL_COLS.join(',')}
+fund,Old job 401(k),Large Cap Index Fund,,VOO,120.5,98.40,11857.20,9000,,2026-11-01,,
+fund,Old job 401(k),Stable Value Fund,,,,,4200.00,4000,,2026-11-01,,
+holding,Old job 401(k),Large Cap Index Fund,,,,,,,,,AAPL,7.1
+\`\`\``;
+
+function copyText(text, what) {
+  if (hasTome && tome.copy) tome.copy(text); else { try { navigator.clipboard.writeText(text); } catch (e) {} }
+  toast(what);
+}
+
+/* Read a CSV made from MANUAL_AI_TEXT (Type is optional; columns in any order, any case). */
+function parseManualCsv(text, defaultAccount) {
+  const rows = parseCSV(String(text || '').replace(/^﻿/, '').replace(/^```[a-z]*\s*$/gim, ''));
+  const hi = rows.findIndex(r => r.some(c => /^fund$/i.test(c)) && r.some(c => /^(value|shares)$/i.test(c)));
+  if (hi < 0) return { error: 'Could not find the header line. It needs at least the Fund and Value columns.' };
+  const head = rows[hi].map(h => h.trim().toLowerCase());
+  const col = n => head.indexOf(n.toLowerCase());
+  const get = (r, n) => { const i = col(n); return i >= 0 ? String(r[i] == null ? '' : r[i]).trim() : ''; };
+  const numOf = s => { const v = cleanNum(s); return isNaN(v) ? null : v; };
+  const funds = [], holdings = {};
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const type = get(r, 'Type').toLowerCase();
+    const fund = get(r, 'Fund');
+    if (type === 'holding') {
+      const sym = get(r, 'Symbol').toUpperCase(), w = numOf(get(r, 'Weight'));
+      if (fund && sym && w > 0) (holdings[fund.toLowerCase()] = holdings[fund.toLowerCase()] || []).push({ symbol: sym, weight: w });
+      continue;
+    }
+    if (!fund) continue;
+    const asOf = get(r, 'AsOf');
+    funds.push({
+      account: get(r, 'Account') || defaultAccount || '',
+      name: fund, ticker: get(r, 'Ticker').toUpperCase(), standIn: get(r, 'StandIn').toUpperCase(),
+      shares: numOf(get(r, 'Shares')), price: numOf(get(r, 'Price')), value: numOf(get(r, 'Value')), cost: numOf(get(r, 'Cost')),
+      link: /^https?:\/\//i.test(get(r, 'Link')) ? get(r, 'Link') : '',
+      updatedAt: /^\d{4}-\d{2}-\d{2}$/.test(asOf) ? asOf : todayStr()
+    });
+  }
+  if (!funds.length) return { error: 'No fund rows found under the header.' };
+  return { funds, holdings };
+}
+
+/* A fund row in the window, from a saved position. */
+function fundRow(p) {
+  return {
+    id: p.id, name: p.name || '', ticker: p.ticker && !/^M_/.test(p.ticker) ? p.ticker : '', standIn: p.standIn || '',
+    shares: num(p.shares) || null, price: p.valueOnly ? null : (num(p.currentPrice) || null),
+    value: Math.round(posValue(p) * 100) / 100 || null, cost: posCost(p) ? Math.round(posCost(p) * 100) / 100 : null,
+    link: p.link || '', updatedAt: p.updatedAt || ''
+  };
+}
+
+/* The window for one hand-entered account: its name, type, plan website and funds. name null = a new account. */
+function openManualAccountModal(name, focusId) {
+  const isNew = !name;
+  const acctRec = (!isNew && state.settings.manualAccounts[name]) || {};
+  let rows = isNew ? [] : state.positions.filter(p => p.manual && p.account === name).map(fundRow);
+  let pendingHoldings = {};   // fund name (lower case): holdings from an import, saved with the account
+  const kind = isNew ? 'k401' : accountKind(name);
+  openModal(isNew ? 'Add an account by hand' : 'Edit ' + shortAcct(name), `
+    <div class="ma-top">
+      <div class="field"><label>Account name</label><input id="maName" value="${esc(name || '')}" placeholder="Old job 401(k)" /></div>
+      <div class="field"><label>Type</label><select id="maKind">${ACCOUNT_KINDS.map(k => `<option value="${k.id}" ${k.id === kind ? 'selected' : ''}>${esc(k.label)}</option>`).join('')}</select></div>
+      <div class="field"><label>Plan website (where you check the balances)</label><div class="ma-link"><input id="maLink" value="${esc(acctRec.link || '')}" placeholder="https://..." /><button id="maOpenLink" class="quiet" title="Open the plan website">Open</button></div></div>
+    </div>
+    <div class="ma-table-wrap"><table class="ma-table"><thead><tr>
+      <th style="width:24%">Fund</th><th style="width:10%">Ticker or ID</th><th style="width:8%" title="An ETF that holds about the same things, used to look inside the fund">Stand-in</th>
+      <th style="width:9%">Shares</th><th style="width:9%">Price</th><th style="width:11%">Value</th><th style="width:10%">Cost</th><th style="width:11%">Updated</th><th style="width:8%"></th>
+    </tr></thead><tbody id="maRows"></tbody></table></div>
+    <div class="ma-tools">
+      <button id="maAdd" class="quiet">+ Add fund</button>
+      <button id="maImportBtn" class="quiet">Import list...</button>
+      <button id="maAi" class="quiet" title="Copy instructions for an AI chat to turn your statement into a list you can import">Copy instructions for AI</button>
+      <span class="grow"></span>
+      <button id="maHold" class="quiet" title="Get the holdings of each stand-in ETF that doesn't have them yet (Alpha Vantage key, 1 call each)">Get stand-in holdings</button>
+    </div>
+    <div id="maImport" class="ma-import" hidden>
+      <div class="sub">Paste the list (CSV) or drop a .csv file here. It updates funds with the same name or ticker and adds new ones. Nothing is saved until you click Save.</div>
+      <textarea id="maPaste" placeholder="${esc(MANUAL_COLS.join(','))}"></textarea>
+      <input id="maFile" type="file" accept=".csv,text/csv,text/plain" style="display:none" />
+      <div id="maImportOut" class="sub"></div>
+      <div class="ma-tools"><button id="maChoose" class="quiet">Choose file...</button><span class="grow"></span><button id="maApply" class="primary" disabled>Use this list</button></div>
+    </div>
+    <div class="hint">Hand-entered funds aren't refreshed from the internet: update them from the plan website. A fund not updated in ${num(state.settings.manualStaleDays) || 90} days is highlighted (change that in Settings, Limits and reminders).</div>`,
+    `${isNew ? '' : '<button id="maDelete" class="quiet ma-del">Delete account</button>'}<button id="mCancel" class="quiet">Cancel</button><button id="mSave" class="primary">${isNew ? 'Add account' : 'Save'}</button>`, 'xwide');
+
+  const tbody = mBody.querySelector('#maRows');
+  const NUMS = ['shares', 'price', 'value', 'cost'];
+  const draw = () => {
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="9" class="ma-empty">No funds yet. Click + Add fund, or Import list to paste them all at once.</td></tr>'; return; }
+    tbody.innerHTML = rows.map((r, i) => {
+      const lv = staleLevel({ manual: true, updatedAt: r.updatedAt });
+      return `<tr data-i="${i}" class="${r.id && r.id === focusId ? 'focus' : ''}">
+        <td><input data-f="name" value="${esc(r.name)}" placeholder="Fund name" /></td>
+        <td><input data-f="ticker" value="${esc(r.ticker)}" placeholder="Optional" /></td>
+        <td><input data-f="standIn" value="${esc(r.standIn)}" placeholder="Optional" title="${r.standIn ? (holdingsFor({ standIn: r.standIn }).length ? 'Holdings saved' : 'No holdings yet: click Get stand-in holdings') : ''}" /></td>
+        ${NUMS.map(f => `<td><input class="n" data-f="${f}" type="number" step="any" value="${r[f] != null ? r[f] : ''}" /></td>`).join('')}
+        <td class="ma-upd">${r.updatedAt ? (lv ? `<span class="badge ${lv === 2 ? 'exit' : 'watch'}">${esc(r.updatedAt)}</span>` : esc(r.updatedAt)) : '<span class="sub">New</span>'}</td>
+        <td class="ma-act"><button class="ma-open" data-link="${i}" title="${r.link ? 'Open ' + esc(r.link) + '. Right-click to change' : 'Add a link to this fund (fact sheet)'}">${r.link ? 'Link' : '+ Link'}</button><button class="row-del-btn" data-del="${i}" title="Remove">&times;</button></td>
+      </tr>`;
+    }).join('');
+    tbody.querySelectorAll('input').forEach(inp => {
+      inp.oninput = () => {
+        const r = rows[Number(inp.closest('tr').dataset.i)], f = inp.dataset.f;
+        if (NUMS.includes(f)) { const v = parseFloat(inp.value); r[f] = isNaN(v) ? null : v; r.updatedAt = todayStr(); r.touched = true; }
+        else r[f] = f === 'name' ? inp.value : inp.value.trim().toUpperCase();
+      };
+    });
+    tbody.querySelectorAll('[data-del]').forEach(b => { b.onclick = () => { rows.splice(Number(b.dataset.del), 1); draw(); }; });
+    tbody.querySelectorAll('[data-link]').forEach(b => {
+      const r = rows[Number(b.dataset.link)];
+      const edit = () => {
+        const td = b.closest('td');
+        td.innerHTML = `<input data-linkedit value="${esc(r.link)}" placeholder="https://..." style="width:100%" />`;
+        const li = td.querySelector('input'); li.focus();
+        const done = () => { const v = li.value.trim(); r.link = /^https?:\/\//i.test(v) ? v : (v ? 'https://' + v : ''); draw(); };
+        li.onblur = done; li.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); li.blur(); } if (e.key === 'Escape') { e.stopPropagation(); draw(); } };
+      };
+      b.onclick = () => { if (r.link) openUrl(r.link); else edit(); };
+      b.oncontextmenu = e => { e.preventDefault(); edit(); };
+    });
+    const f = tbody.querySelector('tr.focus input'); if (f) f.scrollIntoView({ block: 'nearest' });
+  };
+  draw();
+  setTimeout(() => { const n = mBody.querySelector(isNew ? '#maName' : (focusId ? 'tr.focus input' : '#maName')); if (n) n.focus(); }, 0);
+
+  mBody.querySelector('#maOpenLink').onclick = () => { const v = mBody.querySelector('#maLink').value.trim(); if (/^https?:\/\//i.test(v)) openUrl(v); else toast('Type the plan website first'); };
+  mBody.querySelector('#maAdd').onclick = () => { rows.push({ id: null, name: '', ticker: '', standIn: '', shares: null, price: null, value: null, cost: null, link: '', updatedAt: todayStr(), touched: true }); draw(); const ins = tbody.querySelectorAll('tr:last-child input'); if (ins[0]) ins[0].focus(); };
+  mBody.querySelector('#maAi').onclick = () => copyText(MANUAL_AI_TEXT, 'Instructions copied. Paste them into an AI chat with your statement, then paste its list here with Import list');
+  mBody.querySelector('#maHold').onclick = async () => {
+    const need = Array.from(new Set(rows.map(r => r.standIn).filter(Boolean))).filter(t => !holdingsFor({ standIn: t }).length);
+    if (!need.length) { toast(rows.some(r => r.standIn) ? 'Every stand-in already has its holdings' : 'Type a stand-in ETF (like VOO) on a fund first'); return; }
+    for (const t of need) { if (!(await fetchAlphaVantageEtf(t))) break; }
+    draw();
+  };
+
+  // Import list
+  const box = mBody.querySelector('#maImport'), paste = mBody.querySelector('#maPaste'), out = mBody.querySelector('#maImportOut'), apply = mBody.querySelector('#maApply');
+  let parsed = null;
+  const check = () => {
+    const acct = mBody.querySelector('#maName').value.trim();
+    parsed = paste.value.trim() ? parseManualCsv(paste.value, acct) : null;
+    if (!parsed) { out.textContent = ''; apply.disabled = true; return; }
+    if (parsed.error) { out.innerHTML = '<span class="error">' + esc(parsed.error) + '</span>'; apply.disabled = true; return; }
+    const names = new Set(parsed.funds.map(f => f.account).filter(Boolean));
+    const nh = Object.values(parsed.holdings).reduce((s, h) => s + h.length, 0);
+    const keyOf = r => (r.ticker || '') + '|' + String(r.name).toLowerCase();
+    const match = f => rows.find(r => (f.ticker && r.ticker === f.ticker) || String(r.name).toLowerCase() === f.name.toLowerCase());
+    const upd = parsed.funds.filter(match).length;
+    const gone = rows.filter(r => !parsed.funds.some(f => (f.ticker && r.ticker === f.ticker) || r.name.toLowerCase() === f.name.toLowerCase()));
+    out.innerHTML = `${parsed.funds.length} fund${parsed.funds.length === 1 ? '' : 's'}: ${upd} to update, ${parsed.funds.length - upd} new${nh ? ', ' + nh + ' holdings' : ''}.`
+      + (names.size > 1 ? ' <span class="error">The list has more than one account name; all rows go into this account.</span>' : '')
+      + (gone.length ? `<label class="check-row" style="margin-top:4px;"><input id="maDropGone" type="checkbox" checked> Remove ${gone.length} fund${gone.length === 1 ? '' : 's'} not in the list: ${esc(gone.map(r => r.name || '(no name)').join(', '))}</label>` : '');
+    apply.disabled = false;
+    if (!mBody.querySelector('#maName').value.trim() && names.size === 1) mBody.querySelector('#maName').value = Array.from(names)[0];
+    void keyOf;
+  };
+  mBody.querySelector('#maImportBtn').onclick = () => { box.hidden = !box.hidden; if (!box.hidden) paste.focus(); };
+  paste.oninput = check;
+  const readFile = f => { if (!f) return; const r = new FileReader(); r.onload = () => { paste.value = String(r.result || ''); check(); }; r.readAsText(f); };
+  mBody.querySelector('#maChoose').onclick = () => mBody.querySelector('#maFile').click();
+  mBody.querySelector('#maFile').onchange = e => readFile(e.target.files[0]);
+  box.ondragover = e => { e.preventDefault(); e.stopPropagation(); };
+  box.ondrop = e => { e.preventDefault(); e.stopPropagation(); readFile(e.dataTransfer.files[0]); };
+  apply.onclick = () => {
+    if (!parsed || parsed.error) return;
+    const dg = mBody.querySelector('#maDropGone');
+    if (dg && dg.checked) rows = rows.filter(r => parsed.funds.some(f => (f.ticker && r.ticker === f.ticker) || r.name.toLowerCase() === f.name.toLowerCase()));
+    parsed.funds.forEach(f => {
+      let r = rows.find(x => (f.ticker && x.ticker === f.ticker) || x.name.toLowerCase() === f.name.toLowerCase());
+      if (!r) { r = { id: null, link: '' }; rows.push(r); }
+      Object.assign(r, { name: f.name, ticker: f.ticker, standIn: f.standIn, shares: f.shares, price: f.price, value: f.value, cost: f.cost, updatedAt: f.updatedAt, touched: true });
+      if (f.link) r.link = f.link;
+    });
+    pendingHoldings = Object.assign(pendingHoldings, parsed.holdings);
+    paste.value = ''; parsed = null; out.textContent = ''; apply.disabled = true; box.hidden = true;
+    draw();
+    toast('List added below. Check it, then click Save');
+  };
+
+  mFoot.querySelector('#mCancel').onclick = closeModal;
+  const del = mFoot.querySelector('#maDelete');
+  if (del) del.onclick = () => { closeModal(); deleteManualAccount(name); };
+  const save = () => {
+    const newName = mBody.querySelector('#maName').value.trim();
+    if (!newName) { toast('Give the account a name'); mBody.querySelector('#maName').focus(); return; }
+    if (newName !== name && getAccountsAll().includes(newName)) { toast('There is already an account called ' + newName); return; }
+    const bad = rows.find(r => !String(r.name).trim() || (r.value == null && !(r.shares > 0 && r.price > 0)));
+    if (bad) { toast(bad.name ? bad.name + ' needs a value, or shares and a price' : 'Every fund needs a name'); return; }
+    const link = mBody.querySelector('#maLink').value.trim();
+    // Rename: move the account's funds, type and record.
+    if (!isNew && newName !== name) {
+      state.positions.forEach(p => { if (p.account === name) p.account = newName; });
+      delete state.settings.manualAccounts[name];
+      if (state.accountKinds[name]) { state.accountKinds[newName] = state.accountKinds[name]; delete state.accountKinds[name]; }
+      if (ui.account === name) ui.account = newName;
+    }
+    state.settings.manualAccounts = Object.assign({}, state.settings.manualAccounts, { [newName]: { link: /^https?:\/\//i.test(link) ? link : (link ? 'https://' + link : '') } });
+    state.accountKinds[newName] = mBody.querySelector('#maKind').value;
+    const keep = new Set();
+    rows.forEach(r => {
+      let p = r.id && state.positions.find(x => x.id === r.id);
+      if (!p) {
+        p = { id: uid(), manual: true, isEtf: true, sector: '', tags: [], thesis: [], exitStrategy: '', decisionLog: [], lastReviewed: todayStr(), manualStatus: null, netOptionPremium: 0, expenseRatio: null, dayChange: null };
+        state.positions.push(p);
+      }
+      keep.add(p.id);
+      const sh = num(r.shares), px = num(r.price), val = r.value != null ? num(r.value) : sh * px;
+      Object.assign(p, {
+        account: newName, name: String(r.name).trim(), ticker: r.ticker || ('M_' + String(r.name).trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').slice(0, 20)),
+        standIn: r.standIn || '', link: r.link || '', updatedAt: r.updatedAt || todayStr(),
+        shares: sh > 0 ? sh : 0,
+        currentPrice: sh > 0 ? (px > 0 ? px : val / sh) : 0,
+        avgCost: sh > 0 && r.cost != null ? num(r.cost) / sh : 0,
+        valueOnly: sh > 0 ? null : val,
+        costTotal: r.cost != null ? num(r.cost) : null,
+        fidValue: null, fidPrice: null, quoteAt: Date.now()
+      });
+      const h = pendingHoldings[String(r.name).trim().toLowerCase()];
+      if (h && h.length) state.etfCache[manualKey(p)] = { expenseRatio: null, holdings: h.slice(0, 50), updatedAt: r.updatedAt || todayStr() };
+    });
+    state.positions = state.positions.filter(p => !(p.manual && p.account === newName && !keep.has(p.id)));
+    takeSnapshot(); saveState(); closeModal();
+    toast((isNew ? 'Added ' : 'Saved ') + newName + ': ' + rows.length + ' fund' + (rows.length === 1 ? '' : 's'));
+    render();
+  };
+  mFoot.querySelector('#mSave').onclick = save;
+  mBody.onkeydown = e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !e.target.closest('.ma-import') && e.target.dataset.linkedit == null) save(); };
+}
+
+function deleteManualAccount(name) {
+  const funds = state.positions.filter(p => p.account === name);
+  const rec = state.settings.manualAccounts[name], kind = state.accountKinds[name];
+  state.positions = state.positions.filter(p => p.account !== name);
+  const accts = Object.assign({}, state.settings.manualAccounts); delete accts[name]; state.settings.manualAccounts = accts;
+  delete state.accountKinds[name];
+  if (ui.account === name) ui.account = 'ALL';
+  takeSnapshot(); saveState(); render();
+  toast('Deleted ' + shortAcct(name) + ' and its ' + funds.length + ' fund' + (funds.length === 1 ? '' : 's'), { undo: () => {
+    state.positions = state.positions.concat(funds);
+    state.settings.manualAccounts = Object.assign({}, state.settings.manualAccounts, { [name]: rec || {} });
+    if (kind) state.accountKinds[name] = kind;
+    takeSnapshot(); saveState(); render();
+  } });
+}
+
+/* Menu items for a hand-entered fund (right-click in the ETFs view or anywhere it's listed). */
+function manualFundMenuItems(p) {
+  const acctLink = (state.settings.manualAccounts[p.account] || {}).link;
+  return [
+    { label: 'Update ' + (p.name || 'fund') + '...', action: () => openManualAccountModal(p.account, p.id) },
+    ...(p.link ? [{ label: 'Open fund link', action: () => openUrl(p.link) }] : []),
+    ...(acctLink ? [{ label: 'Open plan website', action: () => openUrl(acctLink) }] : []),
+    { label: 'Copy value (' + fmtMoney(posValue(p)) + ')', action: () => copyText(posValue(p).toFixed(2), 'Copied') },
+    { label: 'Research', items: buildResearchMenuItems(p.standIn || p.ticker, true) },
+    '-',
+    { label: 'Remove this fund', danger: true, confirm: true, action: () => deletePosition(p) }
+  ];
+}
+
 /* ---- 50-modals.js ---- */
 /* Right-click menus and windows (from 1.0, with 0.1 additions). */
 function buildResearchMenuItems(ticker, isEtf) {
@@ -2955,6 +3387,7 @@ function buildResearchMenuItems(ticker, isEtf) {
 }
 
 function openPositionContextMenu(ev, p) {
+  if (p.manual) { showMenu(ev, manualFundMenuItems(p)); return; }   // 0.7
   const items = [
     ...(!p.isEtf ? [{ label: 'Open details', action: () => openPositionById(p.id) }] : []),
     ...(canQuote(p) ? [{ label: 'Refresh price', action: () => refreshSingleQuote(p) }] : []),
@@ -3017,6 +3450,7 @@ const mFoot = document.getElementById('modalFoot');
 function openModal(title, bodyHtml, footHtml, wide) {
   mBody.onkeydown = null;
   backdrop.querySelector('.modal-box').classList.toggle('wide', !!wide);
+  backdrop.querySelector('.modal-box').classList.toggle('xwide', wide === 'xwide');
   mTitle.textContent = title;
   mBody.innerHTML = bodyHtml;
   mFoot.innerHTML = footHtml;
@@ -3156,7 +3590,7 @@ function openPositionModal(existing, defaultIsEtf) {
         stopPrice: stopVal > 0 ? stopVal : null,
         thesis: [],
         exitStrategy: '',
-        decisionLog: [{ id: uid(), date: todayStr(), note: `Opened position: ${shares} shares @ ${fmtMoney(avgCost)}` }],
+        decisionLog: [{ id: uid(), date: todayStr(), note: `Opened position: ${shares} shares @ ${fmtPrice(avgCost)}` }],
         lastReviewed: todayStr(),
         manualStatus: null,
         netOptionPremium: 0
@@ -3228,7 +3662,7 @@ function openClosePositionModal(p) {
     } else {
       p.shares = Number(p.shares) - sh;
       if (!p.decisionLog) p.decisionLog = [];
-      p.decisionLog.unshift({ id: uid(), date: todayStr(), note: `Trimmed ${sh} shares @ ${fmtMoney(sp)}` });
+      p.decisionLog.unshift({ id: uid(), date: todayStr(), note: `Trimmed ${sh} shares @ ${fmtPrice(sp)}` });
     }
     saveState();
     closeModal();
@@ -3350,7 +3784,7 @@ function moveWatchToPosition(w) {
       expenseRatio: null,
       thesis: w.notes ? [{ id: uid(), text: w.notes, checked: true }] : [],
       exitStrategy: '',
-      decisionLog: [{ id: uid(), date: todayStr(), note: `Bought from watchlist: ${sh} shares @ ${fmtMoney(px)}` }],
+      decisionLog: [{ id: uid(), date: todayStr(), note: `Bought from watchlist: ${sh} shares @ ${fmtPrice(px)}` }],
       lastReviewed: todayStr(),
       manualStatus: null,
       netOptionPremium: 0
@@ -3428,7 +3862,7 @@ function openEtfHoldingsModal(p) {
 
 
 /* ---- 55-whatsnew.js ---- */
-/* What's new: shown once the first time Stocks Hub opens after an update (per PC: seenVersion isn't synced),
+/* What's new: shown once the first time Investing opens after an update (per PC: seenVersion isn't synced),
    and any time from Settings. ADDON comes from CHANGES.md at build time. */
 const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
 function openWhatsNew(since) {
@@ -3436,7 +3870,7 @@ function openWhatsNew(since) {
   const pick = since ? all.filter(c => newer(c.version, since)) : all.slice(0, 2);
   const list = (pick.length ? pick : all.slice(0, 1)).map(c => `<h4 class="wn-head">${esc(c.version)}${c.date ? ' <span class="muted">' + esc(c.date) + '</span>' : ''}</h4>
     <ul class="wn-list">${c.lines.map(l => '<li>' + esc(l) + '</li>').join('')}</ul>`).join('');
-  openModal("What's new in Stocks Hub", '<div class="wn">' + (list || '<p>No notes for this version.</p>') + '</div>',
+  openModal("What's new in Investing", '<div class="wn">' + (list || '<p>No notes for this version.</p>') + '</div>',
     '<button id="mCancel" class="primary">Got it</button>', true);
   mFoot.querySelector('#mCancel').onclick = closeModal;
 }
@@ -3456,7 +3890,7 @@ function openSettingsModal(tab) {
   const s = state.settings;
   const linkLines = (s.researchLinks || DEFAULT_RESEARCH_LINKS).map(l => l.label + ' | ' + l.url + (l.etfOnly ? ' | etf' : '')).join('\n');
   const a = apiDay();
-  openModal('Stocks Hub settings', `
+  openModal('Investing settings', `
     <div class="tabs">${[['data', 'Prices and calls'], ['look', 'Display'], ['limits', 'Limits and reminders'], ['backup', 'Backup and links'], ['ai', 'For AI']].map(t => `<button class="pill" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div>
 
     <div class="tab-panel" data-panel="data">
@@ -3474,8 +3908,8 @@ function openSettingsModal(tab) {
       <label class="check-row"><input id="sMarket" type="checkbox" ${s.marketHoursOnly ? 'checked' : ''}> Refresh by itself only while the US market is open</label>
       <label class="check-row"><input id="sAutoChart" type="checkbox" ${s.autoChart ? 'checked' : ''}> Load a stock's price chart when I open it (1 call, then saved for a day)</label>
       <label class="check-row"><input id="sAutoNews" type="checkbox" ${s.autoNews ? 'checked' : ''}> Load earnings and headlines when I open a stock (2 calls, then saved for a day)</label>
-      <div class="hint">To use Stocks Hub on more than one PC: in Tome, Settings, Sync, click Sync... next to Stocks Hub and tick your PCs. Positions, notes, prices, cash and these keys sync; each PC keeps its own call limit, auto refresh, and saved charts and news. A PC set to refresh by hand still gets the prices another PC fetched.</div>
-      <div class="hint">Stocks Hub only contacts finnhub.io and alphavantage.co (or your custom address). A full refresh is one call per ticker you hold (${quoteTickers().length} now), sent one a second. Today's movers come from those same replies. Nothing is sent until you add a key.</div>
+      <div class="hint">To use Investing on more than one PC: in Tome, Settings, Sync, click Sync... next to Investing and tick your PCs. Positions, notes, prices, cash and these keys sync; each PC keeps its own call limit, auto refresh, and saved charts and news. A PC set to refresh by hand still gets the prices another PC fetched.</div>
+      <div class="hint">Investing only contacts finnhub.io and alphavantage.co (or your custom address). A full refresh is one call per ticker you hold (${quoteTickers().length} now), sent one a second. Today's movers come from those same replies. Nothing is sent until you add a key.</div>
     </div>
 
     <div class="tab-panel" data-panel="look" hidden>
@@ -3492,8 +3926,9 @@ function openSettingsModal(tab) {
         <div class="field"><label>Max sector %</label><input id="sMaxSector" type="number" value="${num(s.maxSectorPct) || 30}" /></div>
         <div class="field"><label>Review a stock every (days)</label><input id="sStale" type="number" value="${num(s.staleDays) || 90}" /></div>
       </div>
-      <div class="form-row-2">
+      <div class="form-row-3">
         <div class="field"><label>Remind me to import a CSV after (days, 0 = never)</label><input id="sRemind" type="number" min="0" value="${num(s.importRemindDays)}" /></div>
+        <div class="field"><label>Highlight hand-entered funds not updated in (days)</label><input id="sManualStale" type="number" min="1" value="${num(s.manualStaleDays) || 90}" /></div>
         <div class="field"><label>Last import</label><div class="sub" style="padding-top:6px;">${state.lastImport ? new Date(state.lastImport).toLocaleString() : 'None yet'}</div></div>
       </div>
     </div>
@@ -3508,13 +3943,13 @@ function openSettingsModal(tab) {
     </div>
 
     <div class="tab-panel" data-panel="ai" hidden>
-      <div class="hint">To plan or change Stocks Hub with an AI chat that knows nothing about it, copy everything and paste it as the first message of a new chat, then say what you'd like. None of your positions, notes or keys are included.</div>
+      <div class="hint">To plan or change Investing with an AI chat that knows nothing about it, copy everything and paste it as the first message of a new chat, then say what you'd like. None of your positions, notes or keys are included.</div>
       <div class="ai-rows">
-        <div class="ai-row"><button id="sAiAll" class="primary">Make changes to this add-on</button><span class="sub">Copies how Tome add-ons work and their rules, what Stocks Hub is and how it's built, and its code, for a new AI chat.</span></div>
-        <div class="ai-row"><button id="sAiSpec" class="quiet">Copy description</button><span class="sub">Just what Stocks Hub is: its views, saved data and source files. Enough for planning.</span></div>
+        <div class="ai-row"><button id="sAiAll" class="primary">Make changes to this add-on</button><span class="sub">Copies how Tome add-ons work and their rules, what Investing is and how it's built, and its code, for a new AI chat.</span></div>
+        <div class="ai-row"><button id="sAiSpec" class="quiet">Copy description</button><span class="sub">Just what Investing is: its views, saved data and source files. Enough for planning.</span></div>
         <div class="ai-row"><button id="sAiCode" class="quiet">Copy code</button><span class="sub">The whole add-on as one file, the way it's installed.</span></div>
       </div>
-      <div class="hint">Also in Tome: right-click Stocks Hub's name in the bar at the top.</div>
+      <div class="hint">Also in Tome: right-click Investing's name in the bar at the top.</div>
     </div>`,
     `<button id="sWhatsNew" class="quiet wn-btn">What's new in ${esc(ADDON.version)}</button><button id="mCancel" class="quiet">Cancel</button><button id="mSave" class="primary">Save</button>`, true);
 
@@ -3532,7 +3967,7 @@ function openSettingsModal(tab) {
   }; });
   mBody.querySelectorAll('[data-wb]').forEach(b => { b.onclick = () => { wb = b.dataset.wb; mBody.querySelectorAll('[data-wb]').forEach(x => x.classList.toggle('on', x === b)); }; });
   mBody.querySelector('#sExportCsv').onclick = exportPositionsCsv;
-  mBody.querySelector('#sExportJson').onclick = () => { downloadFile('stocks-hub-backup-' + todayStr() + '.json', JSON.stringify(state, null, 2), 'application/json'); toast('Backup downloaded'); };
+  mBody.querySelector('#sExportJson').onclick = () => { downloadFile('investing-backup-' + todayStr() + '.json', JSON.stringify(state, null, 2), 'application/json'); toast('Backup downloaded'); };
   mBody.querySelector('#sLoadSample').onclick = () => { closeModal(); loadSampleData(); };
   // For AI (0.5). Needs Tome 1.43 for the code; older Tome: the description, and the published file opens instead.
   const newKit = hasTome && typeof tome.aiPack === 'function';
@@ -3566,6 +4001,7 @@ function openSettingsModal(tab) {
     s.maxStockPct = Math.max(1, num(v('#sMaxStock').value) || 10);
     s.maxSectorPct = Math.max(1, num(v('#sMaxSector').value) || 30);
     s.staleDays = Math.max(1, num(v('#sStale').value) || 90);
+    s.manualStaleDays = Math.max(1, Math.round(num(v('#sManualStale').value)) || 90);
     s.importRemindDays = Math.max(0, Math.round(num(v('#sRemind').value)));
     const links = [];
     v('#sLinks').value.split('\n').forEach(line => {
@@ -3589,7 +4025,7 @@ function exportPositionsCsv() {
       (p.tags || []).join('; '), p.lastReviewed, p.exitStrategy
     ].map(escCsv).join(','));
   });
-  downloadFile(`stocks-hub-${todayStr()}.csv`, lines.join('\n'), 'text/csv');
+  downloadFile(`investing-${todayStr()}.csv`, lines.join('\n'), 'text/csv');
   toast('Exported CSV');
 }
 
@@ -3705,6 +4141,11 @@ function loadSampleData() {
 document.getElementById('btnImport').onclick = openImportModal;
 document.getElementById('btnRefresh').onclick = () => { if (ui.refreshing) { ui.refreshing = false; toast('Refresh stopped'); } else refreshAllQuotes(false); };
 document.getElementById('btnSettings').onclick = () => openSettingsModal();
+// 0.7: with Tome 1.47 the gear sits at the far right of Tome's own bar, next to the lightbulb; older Tome keeps ours.
+if (hasTome && typeof tome.onSettings === 'function') {
+  tome.onSettings(() => { if (!backdrop.classList.contains('open')) openSettingsModal(); });
+  document.getElementById('btnSettings').hidden = true;
+}
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && backdrop.classList.contains('open')) { sizeAttr(); closeModal(); return; }
@@ -3778,6 +4219,7 @@ async function init() {
       render();
     });
   }
+  ui.exposure = state.settings.exposure === 'full' ? 'full' : 'direct';
   sizeAttr();
   render();
   if (!(hasTome && tome.preview) && !(state.snapshots || []).some(s => s.date === todayStr()) && state.positions.length) { takeSnapshot(); saveState(); }
