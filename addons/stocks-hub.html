@@ -5,7 +5,7 @@
 {
   "id": "stocks-hub",
   "name": "Stocks Hub",
-  "version": "0.4",
+  "version": "0.5",
   "api": 1,
   "description": "Personal stock, ETF, and net worth dashboard with thesis health, overlap analysis, and exit planning.",
   "icon": "\u003csvg viewBox=\"0 0 48 48\">\u003cpath d=\"M6 34l10-10 8 7 14-17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cpath d=\"M30 14h8v8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cline x1=\"6\" y1=\"41\" x2=\"42\" y2=\"41\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\"/>\u003c/svg>"
@@ -848,6 +848,11 @@
 .wn-list { margin: 0 0 8px; padding-left: 20px; line-height: 1.5; }
 .modal-foot .wn-btn { margin-right: auto; }
 
+/* Settings, For AI (0.5) */
+.ai-rows { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+.ai-row { display: grid; grid-template-columns: calc(230px * var(--fs, 1)) 1fr; gap: 12px; align-items: center; }
+.ai-row button { justify-self: stretch; }
+
 </style>
 </head>
 <body>
@@ -886,7 +891,8 @@
 
 <script>
 (function () {
-const ADDON = {"version":"0.4","changes":[{"version":"0.4","date":"2026-11-25","lines":["No calls at all (prices, charts or news) while Tome previews or tests a new version before installing it, so updates never use up your daily calls."]},{"version":"0.3","date":"2026-11-25","lines":["Needs Tome 1.40.0 or newer to update by itself.","Updates itself: Tome checks once a day and installs a newer Stocks Hub on its own, keeping all your data, then says so.","What's new shows once after an update, and any time from Settings.","With Tome 1.40, its data is saved in addons/stocks-hub inside your Tome data folder."]},{"version":"0.2","date":"2026-11-25","lines":["Needs Tome 1.39.0 or newer to sync.","Syncs between your PCs: in Tome, Settings, Sync, click Sync... beside Stocks Hub and tick your PCs. Positions with their notes, prices, cash, other assets, value over time and settings (your keys too) come along; each PC keeps its own call limit, auto refresh, and saved charts and news.","A change arriving from another PC while you're typing waits until you leave the box, so you're never knocked out of a note, and what you typed is kept.","Settings, Prices and calls says how to turn sync on."]}]};
+const ADDON = {"version":"0.5","changes":[{"version":"0.5","date":"2026-11-25","lines":["Copying the code needs Tome 1.43.0 or newer; the description works everywhere.","Settings, For AI: copy everything a new AI chat needs to work on Stocks Hub (how add-ons work, what Stocks Hub is, and its code), or just the description, or just the code. None of your positions, notes or keys are included.","In Tome, right-click Stocks Hub's name in the top bar for the same."]},{"version":"0.4","date":"2026-11-25","lines":["No calls at all (prices, charts or news) while Tome previews or tests a new version before installing it, so updates never use up your daily calls."]},{"version":"0.3","date":"2026-11-25","lines":["Needs Tome 1.40.0 or newer to update by itself.","Updates itself: Tome checks once a day and installs a newer Stocks Hub on its own, keeping all your data, then says so.","What's new shows once after an update, and any time from Settings.","With Tome 1.40, its data is saved in addons/stocks-hub inside your Tome data folder."]}],"spec":"# Stocks Hub\n\nAdd-on id `stocks-hub`. Kept in a private repo (tomer629/Tome-Addons) with its source split into files under `stocks-hub/src/` and built into the single installed file. Working in a chat without the repo: describe changes, or return the whole updated file with a higher version (0.x) and the same id; Thomas has it merged into the source.\n\nA personal dashboard for stocks, ETFs and net worth, fed by a positions CSV exported from the brokerage. Built to match the brokerage's All accounts total to the cent, while keeping internet calls few (it also runs on a work PC).\n\nDecisions and ideas: `BACKLOG.md`. Versions: `CHANGES.md`. Needs Tome 1.39+ to sync between PCs, 1.40+ to update by itself.\n\n## Views (pills in Tome's bar, with an in-page fallback)\n\n| View | What it shows |\n|---|---|\n| Positions | Individual stocks: cards on the left (value, gain or loss, right-click for more), detail on the right: price chart, across-accounts card, thesis checklist, exit strategy, decision log, trim and target planner, earnings and news, research links |\n| ETFs | ETFs and funds, overlap between them and look-through holdings |\n| Overview | Value over time, allocation donuts, today's movers, tax-loss candidates, total net worth with manual assets |\n| Watchlist | Stocks being watched |\n| Closed | Closed positions and lessons |\n| Options | Open options from the last import |\n\nSettings window, five tabs: Prices and calls (keys, refresh, call limit), Display, Limits and reminders, Backup and links, For AI (copy everything for a new AI chat, the description, or the code). Also What's new.\n\n## Getting data in\n\n- Drop or choose the CSV anywhere on the page. Re-imports update shares, cost and price and keep notes; positions missing from the import are offered to move to Closed.\n- Prices: the CSV's own prices, then optional refreshes from free quote services with the person's own keys (or a custom quote address), within a daily call limit. Auto refresh every few hours, market hours only by default.\n- A reminder bar when there's been no import for a week (adjustable).\n\n## Saved data (tome.data)\n\nOne object, `version: 1`:\n\n```\npositions[]      { id, ticker, name, account, shares, avgCost, currentPrice, sector, tags[], isEtf, expenseRatio,\n                   thesis[{ id, text, checked }], exitStrategy, decisionLog[{ id, date, note }], lastReviewed,\n                   manualStatus, netOptionPremium, ... }\nwatchlist[], closed[]\nmanualAssets[]   { id, name, category, value, owed, updatedAt, notes }\nsnapshots[]      { date, total, invested, cash, options, manual, byAccount, prices }   value over time, one per day\ncashByAccount, openOptionsByAccount, openOptions[], accountKinds, lastImport, etfCache, lastQuoteRefresh\napi              { day, finnhub, av }   call counter (per PC)\ncache            { chart, news, earn }  saved charts and news (per PC)\nremindSnooze\nsettings         keys, refresh and limits, weightBase, fontSize, netWorthInBar, researchLinks[]\n```\n\nSync (Tome's js/sync-stocks.js) merges each position, watchlist item, closed trade and manual asset field by field; the call counter, auto refresh settings, saved charts and news, and the reminder snooze stay on each PC. A new field in a list record syncs by itself; a new top-level field needs a Tome change.\n\n## Kit calls used\n\ntome.data, tome.bar, tome.menu, tome.toast, tome.open, tome.copy, tome.download, tome.preview (no calls in a preview), tome.about (this file, sent by the build), tome.code and tome.aiPack (For AI, Tome 1.43+).\n\n## Source\n\n`src/js/` in load order: 00-core (state, helpers, numbers), 10-api (quotes and call budget), 20-import (CSV), 30-charts, 35-shell (views and bar), 40-positions, 41-etfs, 42-overview, 43-lists (watchlist, closed, options), 50-modals, 55-whatsnew, 60-settings, 90-init.\n"};
+if (typeof tome !== 'undefined' && tome && typeof tome.about === 'function' && ADDON.spec) tome.about(ADDON.spec);
 /* ---- 00-core.js ---- */
 /* Core: state, helpers, and the numbers every view uses. */
 'use strict';
@@ -3445,13 +3451,13 @@ function maybeWhatsNew() {
 }
 
 /* ---- 60-settings.js ---- */
-/* Settings: four tabs so the window never needs scrolling. */
+/* Settings: five tabs so the window never needs scrolling. 0.5: For AI (copy what a new AI chat needs). */
 function openSettingsModal(tab) {
   const s = state.settings;
   const linkLines = (s.researchLinks || DEFAULT_RESEARCH_LINKS).map(l => l.label + ' | ' + l.url + (l.etfOnly ? ' | etf' : '')).join('\n');
   const a = apiDay();
   openModal('Stocks Hub settings', `
-    <div class="tabs">${[['data', 'Prices and calls'], ['look', 'Display'], ['limits', 'Limits and reminders'], ['backup', 'Backup and links']].map(t => `<button class="pill" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div>
+    <div class="tabs">${[['data', 'Prices and calls'], ['look', 'Display'], ['limits', 'Limits and reminders'], ['backup', 'Backup and links'], ['ai', 'For AI']].map(t => `<button class="pill" data-tab="${t[0]}">${t[1]}</button>`).join('')}</div>
 
     <div class="tab-panel" data-panel="data">
       <div class="api-meter"><span>Calls today: <b id="sCalls">${a.finnhub + a.av}</b> of <b>${num(s.dailyCallLimit) || 150}</b></span><span>Finnhub <b>${a.finnhub}</b></span><span>Alpha Vantage <b>${a.av}</b> of 25</span></div>
@@ -3499,6 +3505,16 @@ function openSettingsModal(tab) {
         <button id="sExportJson" class="quiet">Download a backup (JSON)</button>
         <button id="sLoadSample" class="quiet">Load sample data</button>
       </div>
+    </div>
+
+    <div class="tab-panel" data-panel="ai" hidden>
+      <div class="hint">To plan or change Stocks Hub with an AI chat that knows nothing about it, copy everything and paste it as the first message of a new chat, then say what you'd like. None of your positions, notes or keys are included.</div>
+      <div class="ai-rows">
+        <div class="ai-row"><button id="sAiAll" class="primary">Copy everything for a new chat</button><span class="sub">How Tome add-ons work and their rules, what Stocks Hub is and how it's built, and its code.</span></div>
+        <div class="ai-row"><button id="sAiSpec" class="quiet">Copy description</button><span class="sub">Just what Stocks Hub is: its views, saved data and source files. Enough for planning.</span></div>
+        <div class="ai-row"><button id="sAiCode" class="quiet">Copy code</button><span class="sub">The whole add-on as one file, the way it's installed.</span></div>
+      </div>
+      <div class="hint">Also in Tome: right-click Stocks Hub's name in the bar at the top.</div>
     </div>`,
     `<button id="sWhatsNew" class="quiet wn-btn">What's new in ${esc(ADDON.version)}</button><button id="mCancel" class="quiet">Cancel</button><button id="mSave" class="primary">Save</button>`, true);
 
@@ -3518,6 +3534,20 @@ function openSettingsModal(tab) {
   mBody.querySelector('#sExportCsv').onclick = exportPositionsCsv;
   mBody.querySelector('#sExportJson').onclick = () => { downloadFile('stocks-hub-backup-' + todayStr() + '.json', JSON.stringify(state, null, 2), 'application/json'); toast('Backup downloaded'); };
   mBody.querySelector('#sLoadSample').onclick = () => { closeModal(); loadSampleData(); };
+  // For AI (0.5). Needs Tome 1.43 for the code; older Tome: the description, and the published file opens instead.
+  const newKit = hasTome && typeof tome.aiPack === 'function';
+  const put = (text, what) => { if (!text) { toast('Nothing to copy'); return; } if (hasTome && tome.copy) tome.copy(text); else navigator.clipboard.writeText(text).catch(() => {}); toast(what); };
+  const PUBLISHED = 'https://raw.githubusercontent.com/tomer629/Tome-releases/main/addons/stocks-hub.html';
+  mBody.querySelector('#sAiSpec').onclick = () => put(ADDON.spec, 'Description copied');
+  mBody.querySelector('#sAiAll').onclick = async () => {
+    if (newKit) { put(await tome.aiPack(), 'Copied. Paste it into a new AI chat'); return; }
+    put(ADDON.spec, 'Copied the description. Update Tome to copy the code too');
+  };
+  mBody.querySelector('#sAiCode').onclick = async () => {
+    if (newKit) { put(await tome.code(), 'Code copied'); return; }
+    if (hasTome && tome.open) tome.open(PUBLISHED); else window.open(PUBLISHED, '_blank');
+    toast('Opened the published code: update Tome to copy it straight from here');
+  };
   mFoot.querySelector('#mCancel').onclick = () => { sizeAttr(); closeModal(); };
   mFoot.querySelector('#sWhatsNew').onclick = () => { sizeAttr(); openWhatsNew(); };
   mFoot.querySelector('#mSave').onclick = () => {
