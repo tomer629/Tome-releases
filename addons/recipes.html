@@ -5,7 +5,7 @@
 {
   "id": "recipes",
   "name": "Recipes",
-  "version": "1.0",
+  "version": "1.3",
   "api": 1,
   "description": "Your recipe book: scale any recipe, cook step by step with timers, and build a grocery list.",
   "icon": "<svg viewBox=\"0 0 48 48\"><path d=\"M10 7h24a4 4 0 0 1 4 4v30H14a4 4 0 0 1-4-4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linejoin=\"round\"/><path d=\"M10 37a4 4 0 0 1 4-4h24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/><path d=\"M19 13v8a3 3 0 0 0 6 0v-8M22 13v15M31 13c-2.5 1.5-3 5-3 8h3v7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
@@ -121,8 +121,10 @@ ol.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-directio
 .log-e { display: grid; grid-template-columns: auto auto minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
 .log-e .d { color: var(--muted); font-size: calc(13px * var(--t)); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .log-e .t { overflow-wrap: anywhere; }
-.log-e.editing { grid-template-columns: auto auto minmax(0, 1fr); }
-.log-e input[type=text] { width: 100%; padding: 3px 7px; }
+.log-e.editing { grid-template-columns: auto auto minmax(0, 1fr); row-gap: 6px; }
+.log-e.editing textarea { grid-column: 1 / -1; }
+.log-e input[type=text], .log-e textarea { width: 100%; padding: 3px 7px; }
+.log-e textarea { resize: none; field-sizing: content; min-height: 0; max-height: 160px; line-height: 1.4; font: inherit; overflow-wrap: anywhere; }
 .log-e input[type=date] { padding: 2px 5px; }
 .rate { display: inline-flex; gap: 0; }
 .rate button { border: 0; background: none; padding: 0 1px; font-size: calc(17px * var(--t)); line-height: 1; color: var(--line); }
@@ -244,6 +246,12 @@ ul.gl { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); 
   .cm-all { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .tm.ring { animation: none; } }
+/* 1.2: a small box asking for text (rename a tag) */
+.rb-ask { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding-top: 70px; background: rgba(0,0,0,.25); }
+.rb-ask form { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; width: min(360px, 92vw); box-shadow: 0 10px 30px rgba(0,0,0,.25); display: flex; flex-direction: column; gap: 10px; }
+.rb-ask h3 { margin: 0; font-size: calc(15px * var(--t)); }
+.rb-ask input { width: 100%; box-sizing: border-box; }
+.rb-ask .row { display: flex; justify-content: flex-end; gap: 8px; }
 </style>
 </head>
 <body>
@@ -345,6 +353,8 @@ let S = clean(tome.data.get());
 const sent = [];
 function save() { const t = JSON.stringify(S); sent.push(t); if (sent.length > 30) sent.shift(); tome.data.set(S); }
 const byId = id => S.recipes.find(r => r.id === id) || null;
+/* A recipe's picture. 1.30: a synced recipe can hold "p:<hash>" until its picture arrives from Tome sync. */
+const photoOf = r => (r && typeof r.photo === "string" && r.photo.startsWith("data:") ? r.photo : "");
 const sizeMB = () => (JSON.stringify(S).length / 1048576);
 
 /* ---------- units ---------- */
@@ -699,6 +709,41 @@ function recipeText(r) {
   return lines.join("\n");
 }
 
+/* ---------- grocery aisles (1.30; the phone groups the same way: RecipeCore.kt) ---------- */
+const AISLES = ["Produce", "Meat & seafood", "Dairy & eggs", "Bakery", "Pantry", "Canned & jarred", "Spices & baking", "Frozen", "Drinks", "Household", "Other"];
+/* Words as normName gives them (lower case, singular, no "fresh" or "ground"). Phrases are checked first, longest
+   first; then single words, aisle by aisle in CHECK order (so "chicken broth" is a can, not meat). */
+const AISLE_WORDS = {
+  "Produce": "apple banana lemon lime orange berry strawberry blueberry raspberry blackberry grape avocado tomato potato onion shallot garlic ginger carrot celery broccoli cauliflower spinach kale lettuce cabbage cucumber zucchini squash pumpkin mushroom jalapeno scallion leek parsley cilantro basil mint dill corn pea asparagus eggplant radish beet yam pear peach plum cherry mango pineapple melon watermelon kiwi arugula chard fennel chive green salad sprout herb|bell pepper|red pepper|green pepper|yellow pepper|orange pepper|chili pepper|sweet potato|green bean|green onion|spring onion|lemon juice|lime juice|garlic clove|romaine lettuce",
+  "Meat & seafood": "chicken beef pork turkey lamb bacon sausage ham steak mince veal fish salmon tuna shrimp prawn cod tilapia crab scallop chorizo prosciutto pepperoni salami duck venison meatball",
+  "Dairy & eggs": "milk butter cheese cheddar mozzarella parmesan ricotta feta cream yogurt egg buttermilk ghee margarine|sour cream|cream cheese|half half|almond milk|oat milk",
+  "Bakery": "bread bun roll tortilla pita bagel baguette croissant naan|english muffin|pie crust",
+  "Pantry": "rice pasta spaghetti noodle macaroni penne fettuccine linguine lasagna oat oatmeal cereal oil vinegar ketchup mustard mayonnaise mayo jam jelly nut almond walnut pecan peanut cashew pistachio raisin cracker chip honey syrup sesame breadcrumb panko quinoa lentil couscous sriracha worcestershire tahini|olive oil|vegetable oil|canola oil|sesame oil|coconut oil|soy sauce|peanut butter|hot sauce|maple syrup|tortilla chip|fish sauce",
+  "Canned & jarred": "broth stock bean chickpea salsa sauce soup olive pickle caper marinara pesto|tomato paste|tomato sauce|coconut milk|artichoke heart|diced tomato|crushed tomato",
+  "Spices & baking": "flour sugar yeast vanilla cocoa chocolate cornstarch salt pepper cinnamon cumin paprika oregano thyme rosemary sage nutmeg clove curry turmeric coriander seasoning spice extract sprinkle gelatin cardamom allspice cayenne|baking soda|baking powder|chocolate chip|garlic powder|onion powder|chili powder|garlic salt|bay leaf|bay leave|red pepper flake|pepper flake|black pepper|italian seasoning",
+  "Frozen": "frozen|ice cream|puff pastry",
+  "Drinks": "wine beer juice coffee tea soda seltzer|orange juice",
+  "Household": "foil napkin soap detergent sponge parchment|paper towel|plastic wrap|trash bag|toilet paper",
+};
+const CHECK = ["Frozen", "Household", "Spices & baking", "Canned & jarred", "Pantry", "Drinks", "Bakery", "Dairy & eggs", "Meat & seafood", "Produce"];
+const AISLE_ONE = {}, AISLE_PHRASES = [];
+Object.entries(AISLE_WORDS).forEach(([a, list]) => {
+  const [one, ...phr] = list.split("|");
+  one.split(" ").filter(Boolean).forEach(w => { (AISLE_ONE[w] = AISLE_ONE[w] || []).push(a); });
+  phr.forEach(x => AISLE_PHRASES.push([x, a]));
+});
+AISLE_PHRASES.sort((x, y) => y[0].length - x[0].length);
+function aisleOf(name, unit) {
+  const n = " " + normName(name) + " ";
+  if (n === "  ") return "Other";
+  for (const [x, a] of AISLE_PHRASES) if (n.includes(" " + x + " ")) return a;
+  const words = n.trim().split(" ");
+  if (words.includes("frozen")) return "Frozen";
+  if (unit === "can" || unit === "jar") return "Canned & jarred";
+  for (const a of CHECK) if (words.some(w => (AISLE_ONE[w] || []).includes(a))) return a;
+  return "Other";
+}
+
 /* ---------- rendering: library ---------- */
 const avgStars = r => { const s = r.log.filter(x => x.stars > 0); return s.length ? s.reduce((a, x) => a + x.stars, 0) / s.length : 0; };
 const lastMade = r => r.log.reduce((a, x) => (x.date > a ? x.date : a), "");
@@ -714,11 +759,14 @@ function searchHit(r, q) {
   });
   return { ok, via };
 }
+/* The tag filter: "tag:" then one or more tags (lower case), one per line (1.2: Ctrl+click picks several). */
+const filterTags = () => (S.ui.filter.startsWith("tag:") ? S.ui.filter.slice(4).split("\n").filter(Boolean) : []);
+const setTags = list => { S.ui.filter = list.length ? "tag:" + [...new Set(list)].join("\n") : "all"; };
 function visible() {
   const q = $("q").value.trim(), f = S.ui.filter;
   let list = S.recipes.map(r => ({ r, hit: searchHit(r, q) })).filter(x => x.hit.ok);
   if (f === "fav") list = list.filter(x => x.r.fav);
-  else if (f.startsWith("tag:")) { const t = f.slice(4).toLowerCase(); list = list.filter(x => x.r.tags.some(g => g.toLowerCase() === t)); }
+  else if (f.startsWith("tag:")) { const want = filterTags(); list = list.filter(x => want.every(t => x.r.tags.some(g => g.toLowerCase() === t))); }
   const so = S.prefs.sort;
   list.sort((a, b) => so === "name" ? a.r.title.localeCompare(b.r.title)
     : so === "rating" ? avgStars(b.r) - avgStars(a.r) || a.r.title.localeCompare(b.r.title)
@@ -731,9 +779,96 @@ function allTags() {
   S.recipes.forEach(r => r.tags.forEach(t => { const k = t.toLowerCase(); const e = n.get(k) || { t, c: 0 }; e.c++; n.set(k, e); }));
   return [...n.values()].sort((a, b) => b.c - a.c || a.t.localeCompare(b.t));
 }
+/* 1.2: All, Favorites and the tags as pills in Tome's bar above the add-on (tome.bar, Tome 1.31+). */
+const BAR = !!(window.tome && tome.bar);
+function recipeNames(list) {
+  const n = list.slice(0, 6).map(r => r.title || "Untitled");
+  return n.join("\n") + (list.length > 6 ? "\n...and " + (list.length - 6) + " more" : "");
+}
+function renderBar() {
+  if (!BAR) return;
+  if (!S.recipes.length) { tome.bar.set([]); return; }
+  const want = filterTags();
+  const pills = [{ id: "all", label: "All", count: S.recipes.length, on: S.ui.filter === "all", title: "All recipes" }];
+  const favs = S.recipes.filter(r => r.fav);
+  if (favs.length) pills.push({ id: "fav", label: "★ Favorites", count: favs.length, on: S.ui.filter === "fav", title: "Favorites\n" + recipeNames(favs) });
+  allTags().forEach(t => {
+    const k = t.t.toLowerCase();
+    const list = S.recipes.filter(r => r.tags.some(g => g.toLowerCase() === k));
+    pills.push({ id: "tag:" + k, label: t.t, count: t.c, on: want.includes(k), title: t.t + ": " + t.c + " recipe" + (t.c === 1 ? "" : "s") + "\n" + recipeNames(list) + "\nCtrl+click to add to the filter. Right-click to rename." });
+  });
+  tome.bar.set(pills);
+}
+function pickPill(p) {
+  if (p.id === "all" || p.id === "fav") { if (p.menu) return; S.ui.filter = p.id === "fav" && S.ui.filter === "fav" ? "all" : p.id; save(); renderSide(); return; }
+  const k = p.id.slice(4);
+  const t = allTags().find(x => x.t.toLowerCase() === k);
+  if (!t) return;
+  if (p.menu) {
+    tome.menu(p.x, p.y, [
+      { label: "Show only " + t.t, action: () => { setTags([k]); save(); renderSide(); } },
+      { label: "Rename tag...", action: () => renameTag(t.t) },
+      "-",
+      { label: "Remove from all recipes", danger: true, action: () => removeTag(t.t) },
+    ]);
+    return;
+  }
+  const cur = filterTags();
+  if (p.ctrl) setTags(cur.includes(k) ? cur.filter(x => x !== k) : [...cur, k]);
+  else setTags(cur.length === 1 && cur[0] === k ? [] : [k]);
+  save(); renderSide();
+}
+if (BAR) tome.bar.onPick(pickPill);
+function askText(title, value, okLabel, done) {
+  document.querySelector(".rb-ask")?.remove();
+  const wrap = h("div", "rb-ask");
+  const f = h("form");
+  const inp = h("input"); inp.type = "text"; inp.value = value; inp.maxLength = 40;
+  const ok = h("button", "primary", okLabel); ok.type = "submit";
+  const no = h("button", null, "Cancel"); no.type = "button";
+  const row = h("div", "row"); row.append(no, ok);
+  f.append(h("h3", null, title), inp, row);
+  wrap.append(f);
+  const close = () => wrap.remove();
+  no.onclick = close;
+  wrap.addEventListener("pointerdown", e => { if (e.target === wrap) close(); });
+  f.addEventListener("keydown", e => { if (e.key === "Escape") { e.preventDefault(); close(); } });
+  f.onsubmit = e => { e.preventDefault(); const v = inp.value.trim(); close(); if (v) done(v); };
+  document.body.append(wrap);
+  inp.focus(); inp.select();
+}
+function retag(fn, msg) {
+  const snap = JSON.stringify(S);
+  let n = 0;
+  S.recipes.forEach(r => {
+    const before = JSON.stringify(r.tags);
+    const out = [], seen = new Set();
+    r.tags.forEach(g => { const v = fn(g); if (v && !seen.has(v.toLowerCase())) { seen.add(v.toLowerCase()); out.push(v); } });
+    if (JSON.stringify(out) !== before) { r.tags = out; r.updated = Date.now(); n++; }
+  });
+  if (!n) return;
+  save(); render();
+  tome.toast(msg(n), { undo: () => { S = clean(JSON.parse(snap)); save(); render(); } });
+}
+function renameTag(old) {
+  askText("Rename tag", old, "Rename", name => {
+    const o = old.toLowerCase(), k = name.toLowerCase();
+    if (name === old) return;
+    retag(g => (g.toLowerCase() === o ? name : g), n => "Renamed " + old + " to " + name + " on " + n + " recipe" + (n === 1 ? "" : "s"));
+    const cur = filterTags();
+    if (cur.includes(o)) { setTags(cur.map(x => (x === o ? k : x))); save(); renderSide(); }
+  });
+}
+function removeTag(tag) {
+  const o = tag.toLowerCase();
+  retag(g => (g.toLowerCase() === o ? "" : g), n => "Removed " + tag + " from " + n + " recipe" + (n === 1 ? "" : "s"));
+  const cur = filterTags();
+  if (cur.includes(o)) { setTags(cur.filter(x => x !== o)); save(); renderSide(); }
+}
 function renderFilters() {
   const box = $("filters");
   box.replaceChildren();
+  renderBar();
   if (!S.recipes.length) return;
   const chip = (lbl, key, title) => {
     const b = h("button", "chip" + (S.ui.filter === key ? " on" : ""), lbl);
@@ -741,9 +876,11 @@ function renderFilters() {
     b.onclick = () => { S.ui.filter = S.ui.filter === key && key !== "all" ? "all" : key; save(); renderSide(); };
     box.append(b);
   };
-  chip("All", "all");
-  if (S.recipes.some(r => r.fav)) chip("★ Favorites", "fav");
-  allTags().forEach(t => chip(t.t, "tag:" + t.t.toLowerCase()));
+  if (!BAR) {
+    chip("All", "all");
+    if (S.recipes.some(r => r.fav)) chip("★ Favorites", "fav");
+    allTags().forEach(t => chip(t.t, "tag:" + t.t.toLowerCase()));
+  }
   const so = h("button", "chip", { recent: "Newest", name: "A to Z", rating: "Top rated", made: "Last made" }[S.prefs.sort] + " ▾");
   so.type = "button"; so.title = "Sort";
   so.style.marginLeft = "auto";
@@ -752,7 +889,7 @@ function renderFilters() {
 }
 function thumb(r) {
   const t = h("span", "thumb");
-  if (r.photo) t.style.backgroundImage = "url(" + JSON.stringify(r.photo) + ")";
+  if (photoOf(r)) t.style.backgroundImage = "url(" + JSON.stringify(photoOf(r)) + ")";
   else t.textContent = (r.title.trim()[0] || "?").toUpperCase();
   return t;
 }
@@ -848,8 +985,8 @@ function renderRecipe(main, r) {
   const pane = h("div", "pane");
   /* head */
   const head = h("div", "rv-head");
-  const ph = h("div", "rv-photo" + (r.photo ? "" : " rb-none"));
-  if (r.photo) { ph.style.backgroundImage = "url(" + JSON.stringify(r.photo) + ")"; ph.title = "Click to enlarge"; ph.onclick = () => lightbox(r.photo); }
+  const ph = h("div", "rv-photo" + (photoOf(r) ? "" : " rb-none"));
+  if (photoOf(r)) { ph.style.backgroundImage = "url(" + JSON.stringify(photoOf(r)) + ")"; ph.title = "Click to enlarge"; ph.onclick = () => lightbox(photoOf(r)); }
   const tt = h("div", "rv-title");
   const t1 = h("h1", null, r.title || "Untitled");
   t1.ondblclick = () => editRecipe(r.id, "title");
@@ -981,7 +1118,7 @@ function renderRecipe(main, r) {
   const pin = h("textarea", "pin");
   pin.placeholder = "Notes for next time: swaps, what worked, where it's from...";
   pin.value = r.note;
-  pin.oninput = () => { r.note = pin.value; save(); };
+  pin.oninput = () => { const lr = byId(r.id); if (lr) { lr.note = pin.value; save(); } };
   nc.append(pin);
   const lc = h("section");
   const lh = h("h2", null, "Cook log");
@@ -1021,12 +1158,12 @@ function renderLog(r, box, editId) {
   if (!r.log.length) { box.append(h("p", "empty-note", "Click I made this each time you cook it, to keep a rating and a note.")); return; }
   [...r.log].sort((a, b) => b.date.localeCompare(a.date)).forEach(e => {
     const row = h("div", "log-e" + (e.id === editId ? " editing" : ""));
-    const rate = stars(e.stars, v => { e.stars = v; save(); renderSide(); if (e.id === editId) renderLog(r, box, e.id); else refreshMeta(r); });
+    const rate = stars(e.stars, v => { const le = liveEntry(r, e); le.stars = v; save(); renderSide(); if (e.id === editId) renderLog(liveRecipe(r), box, e.id); else refreshMeta(r); });
     if (e.id === editId) {
-      const d = h("input"); d.type = "date"; d.value = e.date; d.onchange = () => { if (d.value) { e.date = d.value; save(); renderSide(); } };
-      const n = h("input"); n.type = "text"; n.placeholder = "How did it go? Press Enter to save"; n.value = e.note; n.maxLength = 400;
-      n.oninput = () => { e.note = n.value; save(); };
-      n.onkeydown = ev => { if (ev.key === "Enter" || ev.key === "Escape") { ev.preventDefault(); renderLog(r, box, null); } };
+      const d = h("input"); d.type = "date"; d.value = e.date; d.onchange = () => { if (d.value) { liveEntry(r, e).date = d.value; save(); renderSide(); } };
+      const n = h("textarea"); n.rows = 1; n.placeholder = "How did it go? Press Enter to save"; n.value = e.note; n.maxLength = 400;
+      n.oninput = () => { if (/\n/.test(n.value)) n.value = n.value.replace(/\n+/g, " "); liveEntry(r, e).note = n.value; save(); };
+      n.onkeydown = ev => { if (ev.key === "Enter" || ev.key === "Escape") { ev.preventDefault(); renderLog(liveRecipe(r), box, null); } };
       row.append(d, rate, n);
       box.append(row);
       setTimeout(() => n.focus(), 0);
@@ -1044,6 +1181,10 @@ function renderLog(r, box, editId) {
     box.append(row);
   });
 }
+/* 1.3: a sync or another tab can swap in a fresh copy of the book while a box is being typed in. Edits look the
+   recipe and log entry up again by id, so typing always lands in the copy that gets saved. */
+const liveRecipe = r => byId(r.id) || r;
+function liveEntry(r, e) { return liveRecipe(r).log.find(x => x.id === e.id) || e; }
 function refreshMeta(r) { const p = $("main").querySelector(".pane"), top = p ? p.scrollTop : 0; render(); const q = $("main").querySelector(".pane"); if (q) q.scrollTop = top; }
 function stars(v, onSet, ro) {
   const box = h("span", "rate" + (ro ? " ro" : ""));
@@ -1133,7 +1274,7 @@ function renderEditor(focus) {
   const tagSugg = h("div", "sugg");
   left.append(title, metaRow, tagSugg);
   const slot = h("div", "ph-slot"); slot.title = "Click to choose a photo, or paste or drop one anywhere here";
-  const drawSlot = () => { slot.classList.toggle("has", !!d.photo); slot.style.backgroundImage = d.photo ? "url(" + JSON.stringify(d.photo) + ")" : ""; slot.textContent = d.photo ? "" : "Add a photo: click, paste or drop"; };
+  const drawSlot = () => { const pic = photoOf(d); slot.classList.toggle("has", !!pic); slot.style.backgroundImage = pic ? "url(" + JSON.stringify(pic) + ")" : ""; slot.textContent = pic ? "" : d.photo ? "Picture still coming from your other devices" : "Add a photo: click, paste or drop"; };
   drawSlot();
   slot.onclick = () => $("file").click();
   slot.oncontextmenu = e => tome.menu(e, [{ label: "Choose a photo...", action: () => $("file").click() }, { label: "Remove photo", disabled: !d.photo, action: () => { d.photo = ""; save(); drawSlot(); } }]);
@@ -1433,12 +1574,19 @@ function renderGrocery(main) {
       return li;
     };
     const all = [
-      ...rows.map(r => ({ done: !!g.done[r.key], el: () => item(r.name, rowAmount(r), r.src.join("; "), !!g.done[r.key], () => { if (g.done[r.key]) delete g.done[r.key]; else g.done[r.key] = true; save(); render(); },
+      ...rows.map(r => ({ done: !!g.done[r.key], aisle: aisleOf(r.name, r.unit), el: () => item(r.name, rowAmount(r), r.src.join("; "), !!g.done[r.key], () => { if (g.done[r.key]) delete g.done[r.key]; else g.done[r.key] = true; save(); render(); },
         [{ label: g.done[r.key] ? "Untick" : "Tick", action: () => { if (g.done[r.key]) delete g.done[r.key]; else g.done[r.key] = true; save(); render(); } }, { label: "From: " + r.src.join("; "), disabled: true }]) })),
-      ...g.extra.map(x => ({ done: x.done, el: () => item(x.text, "", "", x.done, () => { x.done = !x.done; save(); render(); },
+      ...g.extra.map(x => ({ done: x.done, aisle: aisleOf(x.text, null), el: () => item(x.text, "", "", x.done, () => { x.done = !x.done; save(); render(); },
         [{ label: x.done ? "Untick" : "Tick", action: () => { x.done = !x.done; save(); render(); } }, "-", { label: "Remove", danger: true, action: () => { g.extra = g.extra.filter(y => y !== x); save(); render(); } }]) })),
     ];
-    all.filter(x => !x.done).forEach(x => ul.append(x.el()));
+    /* 1.30: what's left, grouped by aisle in store order. */
+    const left2 = all.filter(x => !x.done);
+    AISLES.forEach(a => {
+      const here = left2.filter(x => x.aisle === a);
+      if (!here.length) return;
+      const s = h("li"); s.className = "sep aisle"; s.style.display = "block"; s.textContent = a; ul.append(s);
+      here.forEach(x => ul.append(x.el()));
+    });
     const dn = all.filter(x => x.done);
     if (dn.length) { const s = h("li"); s.className = "sep"; s.style.display = "block"; s.textContent = "In the cart"; ul.append(s); dn.forEach(x => ul.append(x.el())); }
     gv.append(ul);
