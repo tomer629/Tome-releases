@@ -5,7 +5,7 @@
 {
   "id": "time-blocks",
   "name": "Time Blocks",
-  "version": "1.0",
+  "version": "1.1",
   "api": 1,
   "description": "Drag projects onto your week to log time in blocks.",
   "icon": "\u003csvg viewBox=\"0 0 48 48\">\u003ccircle cx=\"24\" cy=\"25\" r=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/>\u003cpath d=\"M24 15v10l7 5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\u003cpath d=\"M19 5h10\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\"/>\u003c/svg>"
@@ -123,6 +123,7 @@ body.gt-page { overflow: hidden; }
       <button id="gt-next" class="icon-btn" type="button" title="Next week" aria-label="Next week"><svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg></button>
       <button id="gt-today" class="quiet" type="button">This week</button>
       <h2 id="gt-range"></h2>
+      <button id="gt-more" class="icon-btn" type="button" title="More" aria-label="More" style="margin-left:auto"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg></button>
     </header>
     <div id="gt-week" class="gt-week">
       <div class="gt-corner"></div>
@@ -718,6 +719,24 @@ edgeDrag("start");
 edgeDrag("end");
 load();
 render();
+
+/* Make changes to this add-on (1.1): copies what a new AI chat needs to change it. Tome 1.43+ adds how add-ons work
+   and the code (tome.aiPack); older Tome copies just this description. Never includes saved data. */
+const ABOUT = `# Time Blocks
+
+A Tome add-on (id \`time-blocks\`, single HTML file kept in the Tome repo's addons folder; renamed from Grant Time, and the code still calls projects "grants"). Projects in a list on the left, dragged onto a week calendar to plan time blocks, with hours totaled per project.
+
+- Left: projects (add, rename, color, budget of hours). Drag a project onto the week to make a block; drag blocks to move them, drag their edges to resize; right-click for more.
+- Week view: previous and next week, This week; drag the top or bottom edge of the hours to show earlier or later hours (double-click resets).
+- The More button at the end of the week bar has Make changes to this add-on.
+
+Saved data (tome.data): \`{ savedAt, grants: [{ id, name, color, ... }], blocks: [{ id, grantId, date: "YYYY-MM-DD", start, end }] (minutes from midnight), ranges: {} }\`.`;
+if (typeof tome.about === "function") tome.about(ABOUT);
+async function makeChanges() {
+  if (typeof tome.aiPack === "function") { tome.copy(await tome.aiPack()); tome.toast("Copied. Paste it into a new AI chat and say what to change."); }
+  else { tome.copy(ABOUT); tome.toast("Copied the description. Update Tome to copy the code too."); }
+}
+document.getElementById("gt-more").onclick = e => { const b = e.currentTarget.getBoundingClientRect(); tome.menu(b.right - 240, b.bottom + 2, [{ label: "Make changes to this add-on", action: makeChanges }]); e.stopPropagation(); };
 </script>
 </body>
 </html>

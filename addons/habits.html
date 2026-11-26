@@ -5,7 +5,7 @@
 {
   "id": "habits",
   "name": "Habits",
-  "version": "1.0",
+  "version": "1.1",
   "api": 1,
   "description": "Tick off daily habits and keep your streaks going.",
   "icon": "<svg viewBox=\"0 0 48 48\"><rect x=\"6\" y=\"6\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"27\" y=\"6\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"6\" y=\"27\" width=\"15\" height=\"15\" rx=\"4\" fill=\"currentColor\"/><rect x=\"27\" y=\"27\" width=\"15\" height=\"15\" rx=\"4\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/></svg>"
@@ -46,6 +46,7 @@ td.hb-streak b { color: var(--fg); font-size: calc(15px * var(--t)); }
     <input id="name" type="text" maxlength="40" placeholder="New habit, like Walk 20 minutes" aria-label="New habit">
     <button class="primary" type="submit">Add</button>
   </form>
+  <button id="aiMore" class="icon-btn" type="button" title="More" aria-label="More"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg></button>
 </header>
 <div class="hb-scroll">
   <table>
@@ -165,6 +166,24 @@ render();
 // Roll over at midnight (only then, so an edit in progress is never redrawn away).
 let shownDay = new Date().toDateString();
 setInterval(() => { const d = new Date().toDateString(); if (d !== shownDay) { shownDay = d; render(); } }, 60 * 1000);
+
+/* Make changes to this add-on (1.1): copies what a new AI chat needs to change it. Tome 1.43+ adds how add-ons work
+   and the code (tome.aiPack); older Tome copies just this description. Never includes saved data. */
+const ABOUT = `# Habits
+
+A Tome add-on (id \`habits\`, single HTML file kept in the Tome repo's addons folder). A grid of habits by the last 14 days: click a day to tick it off, with a streak for each habit.
+
+- Add a habit in the bar at the top (Enter works).
+- Click a day's square to tick or untick it. Right-click a habit to rename it, change its color or delete it (with Undo).
+- The More button at the top right has Make changes to this add-on.
+
+Saved data (tome.data): \`{ version: 1, habits: [{ id, name, color, done: ["YYYY-MM-DD", ...] }] }\`.`;
+if (typeof tome.about === "function") tome.about(ABOUT);
+async function makeChanges() {
+  if (typeof tome.aiPack === "function") { tome.copy(await tome.aiPack()); tome.toast("Copied. Paste it into a new AI chat and say what to change."); }
+  else { tome.copy(ABOUT); tome.toast("Copied the description. Update Tome to copy the code too."); }
+}
+$("aiMore").onclick = e => { const b = e.currentTarget.getBoundingClientRect(); tome.menu(b.right - 240, b.bottom + 2, [{ label: "Make changes to this add-on", action: makeChanges }]); e.stopPropagation(); };
 </script>
 </body>
 </html>

@@ -5,7 +5,7 @@
 {
   "id": "countdowns",
   "name": "Countdowns",
-  "version": "1.0",
+  "version": "1.1",
   "api": 1,
   "description": "Days left until the dates that matter.",
   "icon": "<svg viewBox=\"0 0 48 48\"><rect x=\"7\" y=\"10\" width=\"34\" height=\"31\" rx=\"5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/><path d=\"M7 19h34M16 6v8M32 6v8\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\"/><path d=\"M19 30l4 4 7-8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
@@ -41,6 +41,7 @@ body { overflow: hidden; display: flex; flex-direction: column; gap: 14px; }
     <input id="date" type="date" aria-label="Date">
     <button class="primary" type="submit">Add</button>
   </form>
+  <button id="aiMore" class="icon-btn" type="button" title="More" aria-label="More"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none"/></svg></button>
 </header>
 <div class="cd-scroll">
   <div id="up" class="cd-grid"></div>
@@ -132,6 +133,24 @@ render();
 // Roll over at midnight (only then, so an edit in progress is never redrawn away).
 let shownDay = new Date().toDateString();
 setInterval(() => { const d = new Date().toDateString(); if (d !== shownDay) { shownDay = d; render(); } }, 60 * 1000);
+
+/* Make changes to this add-on (1.1): copies what a new AI chat needs to change it. Tome 1.43+ adds how add-ons work
+   and the code (tome.aiPack); older Tome copies just this description. Never includes saved data. */
+const ABOUT = `# Countdowns
+
+A Tome add-on (id \`countdowns\`, single HTML file kept in the Tome repo's addons folder). Shows how many days are left until dates the person cares about, soonest first.
+
+- Add: name and date in the bar at the top, Add (Enter works).
+- Each countdown is a card with days to go; past dates show how long ago. Right-click a card to rename it, change its date or color, or delete it (with Undo).
+- The More button at the top right has Make changes to this add-on.
+
+Saved data (tome.data): \`{ version: 1, items: [{ id, name, date: "YYYY-MM-DD", color }] }\`. Colors come from a fixed list of 8.`;
+if (typeof tome.about === "function") tome.about(ABOUT);
+async function makeChanges() {
+  if (typeof tome.aiPack === "function") { tome.copy(await tome.aiPack()); tome.toast("Copied. Paste it into a new AI chat and say what to change."); }
+  else { tome.copy(ABOUT); tome.toast("Copied the description. Update Tome to copy the code too."); }
+}
+$("aiMore").onclick = e => { const b = e.currentTarget.getBoundingClientRect(); tome.menu(b.right - 240, b.bottom + 2, [{ label: "Make changes to this add-on", action: makeChanges }]); e.stopPropagation(); };
 </script>
 </body>
 </html>

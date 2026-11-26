@@ -5,7 +5,7 @@
 {
   "id": "recipes",
   "name": "Recipes",
-  "version": "1.3",
+  "version": "1.4",
   "api": 1,
   "description": "Your recipe book: scale any recipe, cook step by step with timers, and build a grocery list.",
   "icon": "<svg viewBox=\"0 0 48 48\"><path d=\"M10 7h24a4 4 0 0 1 4 4v30H14a4 4 0 0 1-4-4z\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\" stroke-linejoin=\"round\"/><path d=\"M10 37a4 4 0 0 1 4-4h24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3.5\"/><path d=\"M19 13v8a3 3 0 0 0 6 0v-8M22 13v15M31 13c-2.5 1.5-3 5-3 8h3v7\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>"
@@ -1781,6 +1781,8 @@ function moreMenu() {
     { label: "Import recipes...", action: () => $("importFile").click() },
     "-",
     { label: "Storage used: " + (mb < 0.1 ? "under 0.1" : mb) + " MB of 5", disabled: true },
+    "-",
+    { label: "Make changes to this add-on", action: makeChanges },
   ];
 }
 $("importFile").onchange = async () => {
@@ -1866,6 +1868,24 @@ tome.data.onChange(v => {
 });
 if (S.ui.view === "edit" && S.draft) { edBase = ""; renderSide(); renderEditor("title"); tome.toast("Picked up the recipe you were editing"); }
 else render();
+
+/* Make changes to this add-on (1.4): copies what a new AI chat needs to change it. Tome 1.43+ adds how add-ons work
+   and the code (tome.aiPack); older Tome copies just this description. Never includes saved data. */
+const ABOUT = `# Recipes
+
+A Tome add-on (id \`recipes\`, single HTML file kept in the Tome repo's addons folder, about 120 KB). A recipe book with scaling, unit conversion, a grocery list grouped by aisle, a cook mode with timers, ratings and a cook log, and tag pills in Tome's bar.
+
+- Side panel: the recipe list with search and sort; tags, All and Favorites are pills in Tome's bar (tome.bar, Tome 1.31+), right-click a tag to rename or remove it.
+- Recipe view: servings and units, ingredients (tick off, right-click), steps, notes, cook log; right-click almost anything for more. Pasting a recipe's text or a web page's address fills a new one.
+- More menu (the dots at the top of the list): new recipe, sample recipe, export and import, storage used, Make changes to this add-on.
+- The book syncs between the person's PCs and phone through Tome's sync (Tome's js/sync-recipes.js, and the phone's RecipeCore.kt, which must follow the same rules: units, scaling, aisles). Changes to those rules have to be made in all three places, so say so when a change touches them.
+
+Saved data (tome.data), \`v: 1\`: \`{ v, recipes: [{ id, title, servings, time, tags[], fav, photo, ings: [{ id, text }], steps: [{ id, text, use }], note, log: [{ id, date, stars, note }], off[], got[], created, updated }], grocery: { items, extra, done }, prefs: { round, units, sort }, ui: { ... }, draft }\`. Never rename or remove these fields: the phone app reads them too.`;
+if (typeof tome.about === "function") tome.about(ABOUT);
+async function makeChanges() {
+  if (typeof tome.aiPack === "function") { tome.copy(await tome.aiPack()); tome.toast("Copied. Paste it into a new AI chat and say what to change."); }
+  else { tome.copy(ABOUT); tome.toast("Copied the description. Update Tome to copy the code too."); }
+}
 </script>
 </body>
 </html>
